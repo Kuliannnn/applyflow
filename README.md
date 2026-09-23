@@ -1,5 +1,95 @@
 # ApplyFlow
 
+[English](#english) · [中文](#中文)
+
+<a id="english"></a>
+
+A job application tool built around **job description screenshots, text, or links → AI-tailored resume and cover letter → review and edit → export**. The interface defaults to English and follows the approved light, pastel-diffused frosted-glass design. Application tracking is a secondary workflow.
+
+The current release includes the **foundation and Application Studio API contract/database schema (0.5.0)**. The backend supports text JD → mock resume and cover-letter drafts → editing and saved revisions, with an English frosted-glass frontend connected to this workflow.
+
+## Implemented scope
+
+- [OpenAPI 3.1 contract](api/openapi.yaml): 50 operations covering authentication, profiles, job applications, private files, JD sources, base resumes, workspaces, tasks for both documents, revisions, exports, and application linking.
+- [SQL migrations](backend/migrations): 00001–00004 are retained; 00005 adds private files, resume facts, workspaces, and JD sources; 00006 adds document revisions, generation runs, tasks/outbox, idempotency, and exports.
+- [Migration command](backend/cmd/migrate/main.go): Goose + pgx, embedded SQL, bounded timeouts, and database migration locking. No production `down` command is provided.
+- Contract tests, real database constraint/concurrency tests, and CI configuration.
+
+Studio's public contract and database constraints are in place. Handlers are implemented for 34 business operations, and a separate worker processes text JDs and mock generation of both documents. Real AI, automatic resume parsing, personal AI keys, and full profile editing remain unimplemented; interview records and analytics come after the core workflow. See the [local API guide](docs/development/local-api.md) for available operations and startup instructions; the remaining operations are contract-only. Generation requests in 0.5.0 explicitly require `execution_mode=mock`. This exercises the simulated execution pipeline without accepting personal keys or presenting mock output as real AI output.
+
+## Run the frontend
+
+The English Light Glass Studio supports registration/sign-in, text JDs, resume fact confirmation, editing both documents, revision conflict comparison, and PDF/Word exports. Run `npm ci --prefix frontend` and `make run-frontend`. Set `PUBLIC_ORIGIN=http://127.0.0.1:5173` for the API and start the worker separately. See the [frontend guide](docs/development/frontend.md) for full instructions and current limitations.
+
+## Run the API
+
+Follow the [local API setup guide](docs/development/local-api.md) to configure the database, Origin, and two independent random keys. Run `make migrate-up`, then `make run-api`. Registration, sign-in/sign-out, CSRF protection, current identity, and workspace creation, retrieval, updates, and pagination are supported. The default setup is a single local API process.
+
+## Local verification
+
+Requires Go 1.24+, Python 3.13 for validation tools, and PostgreSQL. CI uses PostgreSQL 17; local tests can use `PG_BIN` to specify the installation path.
+
+```sh
+make setup-tools
+make check
+make test-migrations-local
+```
+
+`make check` verifies OpenAPI, contract behavior, Go formatting, vet checks, and compilation. `make test-migrations-local` creates a fresh database under `/tmp`, listens only on a private Unix socket, and stops and cleans it up after testing. It does not use `.env` or an existing application database. If PostgreSQL cannot be found:
+
+```sh
+PG_BIN=/path/to/postgresql/bin make test-migrations-local
+```
+
+You can also use an existing dedicated test database:
+
+```sh
+export TEST_DATABASE_URL='postgresql://localhost/applyflow_test?sslmode=disable'
+make test-integration
+```
+
+The test database name must end in `_test`. Tests create and remove only randomly named schemas; they do not clear `public`. Without a database connection, `make test-integration` fails rather than reporting a false pass.
+
+## Apply migrations
+
+Create the target database first, then configure the process environment:
+
+```sh
+export DATABASE_URL='postgresql://localhost/applyflow?sslmode=disable'
+make migrate-status
+make migrate-up
+make migrate-status
+```
+
+These examples are for local development only. Production connections should use TLS and separate credentials according to the deployment policy. `.env.example` is documentation only: the application does not automatically load `.env`, helping prevent accidental connections to the wrong target. The migration command supports only `up` and `status`. SQL Down sections are for verification in isolated environments, not a production data rollback plan.
+
+## Maintenance rules
+
+1. Update `api/openapi.yaml` before changing public fields, then update the corresponding SQL and tests. The YAML is maintained directly; it is not generated from another source.
+2. Do not modify released migrations. Add a new numbered file instead. Goose records versions automatically; rebuild the migration artifact whenever embedded SQL changes.
+3. Request DTOs must not accept `owner_id`, database-assigned IDs, or fields that overwrite server-managed versions. Ownership comes from the session. Database foreign keys do not replace HTTP authorization checks.
+4. Database triggers maintain application versions and status history; repositories must not write duplicate history. Services maintain profile versions in the same transaction that locks the user row. See the [migration guide](backend/migrations/README.md) for details.
+5. Add only features that can be verified in the current increment. Do not create empty handlers, services, or adapters ahead of time. Build a complete working flow before extracting shared code.
+6. Go dependencies are pinned in `go.mod`/`go.sum`; Python validation dependencies are pinned in `scripts/requirements.lock`. Rerun contract and database tests after dependency updates.
+
+## Design references and next steps
+
+- [Approved interface design](docs/design/DESIGN.md): V3, English-first, light pastel diffusion, frosted glass, and a minimal document workflow.
+- [Application Studio architecture](docs/architecture/application-studio.md): new modules, tables, input parsing, tasks, document revisions, exports, and the complete target API design.
+- [Frontend skill](skills/applyflow-light-glass/SKILL.md): design conventions for implementation and review.
+
+Private PDF/DOCX uploads, explicit manual import, fact confirmation, and revision selection are supported; automatic extraction is not connected yet. Mock generation from text JDs, document revision saving, and fixed-revision PDF/DOCX exports are complete, with the English glass frontend connected. Real AI integration is next. Implementation follows the 0.5.0 contract, with analytics dashboards deferred. Real AI credentials/usage accounting and screenshot/link parsing will follow in later increments.
+
+Related design documents: [Architecture](ARCHITECTURE.md), [API boundaries and semantics](api/README.md), and [Product plan](ApplyFlow_Project_Plan.md). Their complete target scope exceeds what is currently implemented.
+
+The mock workflow uses two separate processes: `make run-api` and `make run-worker`. The worker currently consumes PostgreSQL's durable outbox directly, without Redis. Redis/Asynq dispatch and lease renewal are planned for the real-model stage. The mock generator only preserves and formats confirmed facts, clearly labels its drafts as simulated, and does not perform real AI matching or rewriting. See the [execution and API call sequence](docs/development/local-api.md#文本-jd-到-mock-双文档).
+
+---
+
+<a id="中文"></a>
+
+## 中文
+
 以 **JD 截图/文字/链接 → AI 定制简历与 Cover Letter → 审阅编辑 → 导出** 为核心的求职工具。默认英文，采用已确认的浅色混光磨砂玻璃设计。申请跟踪是辅助流程。
 
 当前交付 **基础层 + Application Studio 契约/数据库结构（0.5.0）**，已实现文本 JD → Mock 双文档草稿 → 编辑/版本保存的后端流程，英文磨砂玻璃前端已接通此流程。
