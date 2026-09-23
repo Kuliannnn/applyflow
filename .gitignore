@@ -1,0 +1,19 @@
+.env
+.env.*
+!.env.example
+.venv/
+.cache/
+__pycache__/
+*.pyc
+bin/
+coverage.out
+.DS_Store
+
+# Private uploaded originals; never commit user documents.
+var/
+backend/var/
+
+# Frontend dependencies and generated build/test outputs.
+frontend/node_modules/
+frontend/dist/
+frontend/test-results/

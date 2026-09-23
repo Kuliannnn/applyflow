@@ -1,0 +1,4919 @@
+openapi: 3.1.0
+info:
+  title: ApplyFlow API — Foundation and Application Studio
+  version: 0.5.0
+  description: Contract-first foundation and Studio data lifecycle. 34 operations are implemented, including fixed-revision PDF/DOCX export;
+    check x-implementation on each operation for availability. All mutations enforce CSRF + Origin; private responses
+    use no-store. Default JSON limit 128 KiB; resume fact confirmation and document content writes 256
+    KiB. Multipart file limit 10 MiB (proxy permits framing overhead). Text also has UTF-8 byte and semantic
+    limits. Generation/refinement supports explicit mock execution only in this slice; live AI credentials,
+    billing, full profiles, interviews and analytics remain deferred. SSRF, file validation and lifecycle
+    transactions are required before implementing routes.
+servers:
+- url: /
+  description: Same-origin frontend and API
+security:
+- sessionCookie: []
+tags:
+- name: Authentication
+  description: Session and CSRF lifecycle
+- name: Profile
+  description: Private basic profile
+- name: Skills
+  description: Catalogue and manual assessments
+- name: Applications
+  description: Owned job records and history
+- name: Files
+- name: Workspaces
+- name: Resumes
+- name: Documents
+- name: Tasks
+paths:
+  /api/auth/csrf:
+    get:
+      operationId: getCSRFToken
+      x-implementation: implemented
+      tags:
+      - Authentication
+      summary: Get signed CSRF context
+      description: Available before login. Sets an anonymous CSRF context cookie, or binds to the current
+        session. Never caches. This endpoint does not issue an authentication session.
+      responses:
+        '200':
+          description: Success
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/X-Request-ID'
+            Cache-Control:
+              $ref: '#/components/headers/Cache-Control'
+            Set-Cookie:
+              description: Signed CSRF context cookie, Secure on HTTPS; Path=/; SameSite=Lax.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CSRFToken'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+      security: []
+  /api/auth/register:
+    post:
+      operationId: register
+      x-implementation: implemented
+      tags:
+      - Authentication
+      summary: Create account and session
+      description: Normalize email with trim+lowercase; validate full email in the handler. In one transaction
+        create user and empty profile (version 1). Sets authentication cookie; no email verification/reset
+        workflow in this slice.
+      responses:
+        '201':
+          description: Success
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/X-Request-ID'
+            Cache-Control:
+              $ref: '#/components/headers/Cache-Control'
+            Set-Cookie:
+              description: Sets/clears applyflow_session HttpOnly; Secure in HTTPS; SameSite=Lax; Path=/.
+                Auth tokens never appear in JSON. Login/register rotate the CSRF context; fetch /api/auth/csrf
+                again.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Session'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+      security: []
+      parameters:
+      - name: X-CSRF-Token
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 16
+        description: Signed CSRF token from GET /api/auth/csrf; also enforce same-origin Origin policy.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Credentials'
+      x-max-body-bytes: 131072
+  /api/auth/login:
+    post:
+      operationId: login
+      x-implementation: implemented
+      tags:
+      - Authentication
+      summary: Log in
+      description: Log in
+      responses:
+        '200':
+          description: Success
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/X-Request-ID'
+            Cache-Control:
+              $ref: '#/components/headers/Cache-Control'
+            Set-Cookie:
+              description: Sets/clears applyflow_session HttpOnly; Secure in HTTPS; SameSite=Lax; Path=/.
+                Auth tokens never appear in JSON. Login/register rotate the CSRF context; fetch /api/auth/csrf
+                again.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Session'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+      security: []
+      parameters:
+      - name: X-CSRF-Token
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 16
+        description: Signed CSRF token from GET /api/auth/csrf; also enforce same-origin Origin policy.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginCredentials'
+      x-max-body-bytes: 131072
+  /api/auth/logout:
+    post:
+      operationId: logout
+      x-implementation: implemented
+      tags:
+      - Authentication
+      summary: Clear session cookie
+      description: Idempotently clears the cookie, including if the JWT expired. Validate signed CSRF
+        context and Origin. Does not revoke a copied stateless JWT; no refresh tokens in this slice.
+      responses:
+        '204':
+          description: Success
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/X-Request-ID'
+            Cache-Control:
+              $ref: '#/components/headers/Cache-Control'
+            Set-Cookie:
+              description: Sets/clears applyflow_session HttpOnly; Secure in HTTPS; SameSite=Lax; Path=/.
+                Auth tokens never appear in JSON. Login/register rotate the CSRF context; fetch /api/auth/csrf
+                again.
+              schema:
+                type: string
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+      security: []
+      parameters:
+      - name: X-CSRF-Token
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 16
+        description: Signed CSRF token from GET /api/auth/csrf; also enforce same-origin Origin policy.
+  /api/auth/me:
+    get:
+      operationId: getCurrentSession
+      x-implementation: implemented
+      tags:
+      - Authentication
+      summary: Get current identity and expiry
+      description: Get current identity and expiry
+      responses:
+        '200':
+          description: Success
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/X-Request-ID'
+            Cache-Control:
+              $ref: '#/components/headers/Cache-Control'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Session'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /api/me/profile:
+    get:
+      operationId: getProfile
+      x-implementation: contract-only
+      tags:
+      - Profile
+      summary: Get private basic profile
+      description: Returns all nullable fields plus profile_version, even when no fields were filled.
+        Preferences, education and experience endpoints are deferred.
+      responses:
+        '200':
+          description: Success
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/X-Request-ID'
+            Cache-Control:
+              $ref: '#/components/headers/Cache-Control'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Profile'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+    patch:
+      operationId: updateProfile
+      x-implementation: contract-only
+      tags:
+      - Profile
+      summary: Update basic profile
+      description: Lock users, compare expected_version, upsert basics, increment profile_version exactly
+        once and commit. Omitted fields unchanged; null clears a field. Empty strings are invalid. Do
+        not change login email. Blank-only strings are invalid.
+      responses:
+        '200':
+          description: Success
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/X-Request-ID'
+            Cache-Control:
+              $ref: '#/components/headers/Cache-Control'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Profile'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+      parameters:
+      - name: X-CSRF-Token
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 16
+        description: Signed CSRF token from GET /api/auth/csrf; also enforce same-origin Origin policy.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProfilePatch'
+      x-max-body-bytes: 131072
+  /api/skills:
+    get:
+      operationId: searchSkills
+      x-implementation: contract-only
+      tags:
+      - Skills
+      summary: Search canonical skills and aliases
+      description: Trim and case-fold query; literal substring match on alias (escape SQL wildcard characters).
+        Deduplicate by skill ID; sort by slug,id. Return limit results and has_more. Empty query browses
+        catalogue. Unknown names return empty items; users cannot create global skills. Canonical spellings
+        are aliases too.
+      responses:
+        '200':
+          description: Success
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/X-Request-ID'
+            Cache-Control:
+              $ref: '#/components/headers/Cache-Control'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SkillList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+      parameters:
+      - name: query
+        in: query
+        required: false
+        schema:
+          type: string
+          maxLength: 100
+          default: ''
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+  /api/me/skills:
+    get:
+      operationId: listMySkills
+      x-implementation: contract-only
+      tags:
+      - Skills
+      summary: List self-assessed skills
+      description: Consistent snapshot of items and profile_version, sorted by skill slug. An absent skill
+        is not_assessed, not new.
+      responses:
+        '200':
+          description: Success
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/X-Request-ID'
+            Cache-Control:
+              $ref: '#/components/headers/Cache-Control'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserSkillList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /api/me/skills/{skill_id}:
+    put:
+      operationId: setMySkill
+      x-implementation: contract-only
+      tags:
+      - Skills
+      summary: Set skill self-assessment
+      description: Lock users and compare expected_version. Upsert one catalogue skill; missing notes
+        becomes empty. Increment profile_version once. Return 404 for unknown skill ID.
+      responses:
+        '200':
+          description: Success
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/X-Request-ID'
+            Cache-Control:
+              $ref: '#/components/headers/Cache-Control'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserSkillResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+      parameters:
+      - name: skill_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: X-CSRF-Token
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 16
+        description: Signed CSRF token from GET /api/auth/csrf; also enforce same-origin Origin policy.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserSkillWrite'
+      x-max-body-bytes: 131072
+    delete:
+      operationId: removeMySkill
+      x-implementation: contract-only
+      tags:
+      - Skills
+      summary: Remove a self-assessment
+      description: If-Match carries the same profile_version as other profile writes. Compare before deleting.
+        If matching and the assessment is absent, return current version unchanged (known catalogue skill
+        required); successful removal increments once. 409 for stale version, 400 for missing/malformed
+        header.
+      responses:
+        '200':
+          description: Success
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/X-Request-ID'
+            Cache-Control:
+              $ref: '#/components/headers/Cache-Control'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProfileVersion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+      parameters:
+      - name: skill_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: If-Match
+        in: header
+        required: true
+        schema:
+          type: string
+          pattern: ^"profile-[1-9][0-9]*"$
+      - name: X-CSRF-Token
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 16
+        description: Signed CSRF token from GET /api/auth/csrf; also enforce same-origin Origin policy.
+  /api/applications:
+    post:
+      operationId: createApplication
+      x-implementation: contract-only
+      tags:
+      - Applications
+      summary: Save a job
+      description: 'Owner comes only from session. Defaults: status=saved, JD/notes empty, optional fields
+        null, versions=1. Whitespace-only company/role rejected. Initial history row is recorded transactionally.
+        Empty JD allowed. No idempotency guarantee for this operation; do not automatically retry uncertain
+        POSTs.'
+      responses:
+        '201':
+          description: Success
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/X-Request-ID'
+            Cache-Control:
+              $ref: '#/components/headers/Cache-Control'
+            Location:
+              schema:
+                type: string
+              description: /api/applications/{id}
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Application'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+      parameters:
+      - name: X-CSRF-Token
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 16
+        description: Signed CSRF token from GET /api/auth/csrf; also enforce same-origin Origin policy.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApplicationCreate'
+      x-max-body-bytes: 131072
+    get:
+      operationId: listApplications
+      x-implementation: contract-only
+      tags:
+      - Applications
+      summary: List own applications
+      description: Filter only own records; archived=false means active only, true means archived only.
+        query is literal case-insensitive substring of company/role. Order updated_at DESC,id DESC. Opaque
+        versioned cursor contains boundary and normalized filter fingerprint; reject mismatches. Always
+        apply owner separately; cursor never authorizes. Mutable list may shift; client deduplicates by
+        ID.
+      responses:
+        '200':
+          description: Success
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/X-Request-ID'
+            Cache-Control:
+              $ref: '#/components/headers/Cache-Control'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApplicationList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+      parameters:
+      - name: status
+        in: query
+        required: false
+        schema:
+          $ref: '#/components/schemas/ApplicationStatus'
+      - name: query
+        in: query
+        required: false
+        schema:
+          type: string
+          maxLength: 200
+          default: ''
+      - name: archived
+        in: query
+        required: false
+        schema:
+          type: boolean
+          default: false
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+      - name: cursor
+        in: query
+        required: false
+        schema:
+          type: string
+          maxLength: 2048
+  /api/applications/{id}:
+    get:
+      operationId: getApplication
+      x-implementation: contract-only
+      tags:
+      - Applications
+      summary: Get own job details
+      description: Own archived applications remain readable. Other owners return 404.
+      responses:
+        '200':
+          description: Success
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/X-Request-ID'
+            Cache-Control:
+              $ref: '#/components/headers/Cache-Control'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Application'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    patch:
+      operationId: updateApplication
+      x-implementation: contract-only
+      tags:
+      - Applications
+      summary: Edit own active job
+      description: Owner + expected_version CAS; archived rows reject with 409 application_archived. Omitted
+        fields unchanged; null only clears nullable fields. Database trigger increments version on every
+        accepted update, jd_version only when JD changes, and records status transitions. Status may move
+        in either direction to correct data; no inferred date_applied/first_response_at.
+      responses:
+        '200':
+          description: Success
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/X-Request-ID'
+            Cache-Control:
+              $ref: '#/components/headers/Cache-Control'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Application'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: X-CSRF-Token
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 16
+        description: Signed CSRF token from GET /api/auth/csrf; also enforce same-origin Origin policy.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApplicationPatch'
+      x-max-body-bytes: 131072
+  /api/applications/{id}/archive:
+    post:
+      operationId: archiveApplication
+      x-implementation: contract-only
+      tags:
+      - Applications
+      summary: Archive own job
+      description: Check owner and expected_version first. Set archived_at, database increments version.
+        Already archived with matching version returns unchanged row; stale version returns 409. Archive
+        does not change application status or delete history. Future analysis module must atomically cancel
+        active work here before that module is enabled.
+      responses:
+        '200':
+          description: Success
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/X-Request-ID'
+            Cache-Control:
+              $ref: '#/components/headers/Cache-Control'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Application'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: X-CSRF-Token
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 16
+        description: Signed CSRF token from GET /api/auth/csrf; also enforce same-origin Origin policy.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ArchiveRequest'
+      x-max-body-bytes: 131072
+  /api/applications/{id}/status-history:
+    get:
+      operationId: listApplicationHistory
+      x-implementation: contract-only
+      tags:
+      - Applications
+      summary: Read status changes
+      description: Verify parent ownership, including archived records. Order application_version DESC;
+        cursor is an opaque version boundary bound to application. Initial row has from_status=null. occurred_at
+        is when the change was recorded, never backdated from date_applied.
+      responses:
+        '200':
+          description: Success
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/X-Request-ID'
+            Cache-Control:
+              $ref: '#/components/headers/Cache-Control'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusHistory'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+      - name: cursor
+        in: query
+        required: false
+        schema:
+          type: string
+          maxLength: 2048
+  /api/files:
+    post:
+      operationId: uploadPrivateFile
+      x-implementation: implemented
+      tags:
+      - Files
+      summary: Upload one private source file
+      description: 'One multipart PDF/DOCX base_resume file <=10 MiB; total body <=11 MiB. Validate actual
+        content. PDF must be readable, unencrypted and <=20 pages. PDF rejection codes include invalid_pdf,
+        pdf_restricted and pdf_page_limit (415); validator execution failure uses file_validator_unavailable (503). DOCX: <=512 ZIP entries, <=8 MiB per
+        entry and <=32 MiB decompressed total; no macros, embeddings or external non-hyperlink relationships.
+        DOCX pagination is renderer-dependent and not checked at upload. Screenshot upload is deferred.
+        Ready denotes validated private storage, not parsed facts. No storage key returned. Unknown upload
+        result is not automatically retried; orphan cleanup is not yet implemented.'
+      parameters:
+      - name: X-CSRF-Token
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 16
+        description: Signed CSRF token from GET /api/auth/csrf; also enforce same-origin Origin policy.
+      responses:
+        '201':
+          description: Success; persisted before responding.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/X-Request-ID'
+            Cache-Control:
+              $ref: '#/components/headers/Cache-Control'
+            Location:
+              description: Same-origin URL of accepted resource or task.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PrivateFile'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/FileUpload'
+      x-max-body-bytes: 11534336
+  /api/files/{id}/download:
+    get:
+      operationId: downloadPrivateFile
+      x-implementation: implemented
+      tags:
+      - Files
+      summary: Download an owned ready file
+      description: Download an owned ready file
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema: &id001
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Success; persisted before responding.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/X-Request-ID'
+            Cache-Control:
+              $ref: '#/components/headers/Cache-Control'
+            Content-Disposition:
+              schema:
+                type: string
+              description: attachment; filename sanitized, UTF-8 filename* supported
+            X-Content-Type-Options:
+              schema:
+                type: string
+                const: nosniff
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /api/workspaces:
+    get:
+      operationId: listWorkspaces
+      x-implementation: implemented
+      tags:
+      - Workspaces
+      summary: List active workspaces
+      description: Cursor pagination by updated_at,id descending. Owner from session; exclude archived.
+        Cursor bound to filters; no total guarantee.
+      parameters:
+      - name: limit
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+      - name: cursor
+        in: query
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 2048
+      responses:
+        '200':
+          description: Success; persisted before responding.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/X-Request-ID'
+            Cache-Control:
+              $ref: '#/components/headers/Cache-Control'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkspaceList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+    post:
+      operationId: createWorkspace
+      x-implementation: implemented
+      tags:
+      - Workspaces
+      summary: Create a recoverable workspace
+      description: Create a recoverable workspace
+      parameters:
+      - name: X-CSRF-Token
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 16
+        description: Signed CSRF token from GET /api/auth/csrf; also enforce same-origin Origin policy.
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: One UUID per user operation. Retry identical body with same key. Replay saved response
+          before version checks; different body returns 409. Stored at least 24h and while tasks are nonterminal.
+      responses:
+        '201':
+          description: Success; persisted before responding.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/X-Request-ID'
+            Cache-Control:
+              $ref: '#/components/headers/Cache-Control'
+            Location:
+              description: Same-origin URL of accepted resource or task.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Workspace'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkspaceCreate'
+      x-max-body-bytes: 131072
+  /api/workspaces/{id}:
+    get:
+      operationId: getWorkspace
+      x-implementation: implemented
+      tags:
+      - Workspaces
+      summary: Read workspace including archived
+      description: Read workspace including archived
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema: *id001
+      responses:
+        '200':
+          description: Success; persisted before responding.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/X-Request-ID'
+            Cache-Control:
+              $ref: '#/components/headers/Cache-Control'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Workspace'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+    patch:
+      operationId: updateWorkspace
+      x-implementation: implemented
+      tags:
+      - Workspaces
+      summary: Update workspace with optimistic version
+      description: Owner/version CAS. Ready confirmed owned resume required. Archived workspace returns
+        409. Changing selection never rewrites historical runs.
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema: *id001
+      - name: X-CSRF-Token
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 16
+        description: Signed CSRF token from GET /api/auth/csrf; also enforce same-origin Origin policy.
+      responses:
+        '200':
+          description: Success; persisted before responding.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/X-Request-ID'
+            Cache-Control:
+              $ref: '#/components/headers/Cache-Control'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Workspace'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkspacePatch'
+      x-max-body-bytes: 131072
+  /api/workspaces/{id}/sources:
+    post:
+      operationId: createJobSource
+      x-implementation: implemented
+      tags:
+      - Workspaces
+      summary: Submit text, URL or screenshot JD
+      description: Text-only mock slice. Atomically persist immutable text, extraction task/outbox and
+        replay response; update workspace version/current_source_id and clear job_revision_id. The Worker
+        returns the original text with null company/role for manual confirmation; no AI extraction is
+        claimed. Images/URLs are not accepted yet. Text is limited to 65536 UTF-8 bytes.
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema: *id001
+      - name: X-CSRF-Token
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 16
+        description: Signed CSRF token from GET /api/auth/csrf; also enforce same-origin Origin policy.
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: One UUID per user operation. Retry identical body with same key. Replay saved response
+          before version checks; different body returns 409. Stored at least 24h and while tasks are nonterminal.
+      responses:
+        '202':
+          description: Success; persisted before responding.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/X-Request-ID'
+            Cache-Control:
+              $ref: '#/components/headers/Cache-Control'
+            Location:
+              description: Same-origin URL of accepted resource or task.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SourceAccepted'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SourceCreate'
+      x-max-body-bytes: 131072
+  /api/workspaces/{id}/sources/{source_id}:
+    get:
+      operationId: getJobSource
+      x-implementation: implemented
+      tags:
+      - Workspaces
+      summary: Read submitted source
+      description: Read submitted source
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema: *id001
+      - name: source_id
+        in: path
+        required: true
+        schema: *id001
+      responses:
+        '200':
+          description: Success; persisted before responding.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/X-Request-ID'
+            Cache-Control:
+              $ref: '#/components/headers/Cache-Control'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobSource'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /api/workspaces/{id}/job-revisions:
+    post:
+      operationId: confirmJobSource
+      x-implementation: implemented
+      tags:
+      - Workspaces
+      summary: Confirm extracted job details
+      description: Owner/version check; source must be current. Reject blank fields and JD over 65536
+        UTF-8 bytes. Insert immutable revision and update workspace selection/version in one transaction.
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema: *id001
+      - name: X-CSRF-Token
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 16
+        description: Signed CSRF token from GET /api/auth/csrf; also enforce same-origin Origin policy.
+      responses:
+        '201':
+          description: Success; persisted before responding.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/X-Request-ID'
+            Cache-Control:
+              $ref: '#/components/headers/Cache-Control'
+            Location:
+              description: Same-origin URL of accepted resource or task.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobConfirmed'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/JobConfirm'
+      x-max-body-bytes: 131072
+  /api/workspaces/{id}/job-revisions/{revision_id}:
+    get:
+      operationId: getJobRevision
+      x-implementation: implemented
+      tags:
+      - Workspaces
+      summary: Read confirmed job revision
+      description: Read confirmed job revision
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema: *id001
+      - name: revision_id
+        in: path
+        required: true
+        schema: *id001
+      responses:
+        '200':
+          description: Success; persisted before responding.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/X-Request-ID'
+            Cache-Control:
+              $ref: '#/components/headers/Cache-Control'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobRevision'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /api/resumes:
+    get:
+      operationId: listResumes
+      x-implementation: implemented
+      tags:
+      - Resumes
+      summary: List owned base resumes
+      description: List owned base resumes
+      parameters:
+      - name: limit
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+      - name: cursor
+        in: query
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 2048
+      responses:
+        '200':
+          description: Success; persisted before responding.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/X-Request-ID'
+            Cache-Control:
+              $ref: '#/components/headers/Cache-Control'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResumeList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+    post:
+      operationId: importResume
+      x-implementation: implemented
+      tags:
+      - Resumes
+      summary: Import base resume for review
+      description: 'Manual import only in 0.3.0: validate ready owned base_resume file; atomically create
+        resume and idempotent replay response. Return 201 with task_id=null. No parser task or outbox
+        is created. User submits facts through the revisions endpoint; automated extraction will be added
+        as an explicit mode with a working worker.'
+      parameters:
+      - name: X-CSRF-Token
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 16
+        description: Signed CSRF token from GET /api/auth/csrf; also enforce same-origin Origin policy.
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: One UUID per user operation. Retry identical body with same key. Replay saved response
+          before version checks; different body returns 409. Stored at least 24h and while tasks are nonterminal.
+      responses:
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '201':
+          description: Success; persisted before responding.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/X-Request-ID'
+            Cache-Control:
+              $ref: '#/components/headers/Cache-Control'
+            Location:
+              description: Same-origin URL of accepted resource or task.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResumeImported'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResumeImport'
+      x-max-body-bytes: 131072
+  /api/resumes/{id}:
+    get:
+      operationId: getResume
+      x-implementation: implemented
+      tags:
+      - Resumes
+      summary: Read base resume and parse status reference
+      description: Read base resume and parse status reference
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema: *id001
+      responses:
+        '200':
+          description: Success; persisted before responding.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/X-Request-ID'
+            Cache-Control:
+              $ref: '#/components/headers/Cache-Control'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Resume'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+    patch:
+      operationId: updateResume
+      x-implementation: implemented
+      tags:
+      - Resumes
+      summary: Rename or set default resume
+      description: Lock user then resume, check expected_version. Setting default clears any previous
+        default atomically and advances affected resume versions. Require confirmed current revision before
+        default selection.
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema: *id001
+      - name: X-CSRF-Token
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 16
+        description: Signed CSRF token from GET /api/auth/csrf; also enforce same-origin Origin policy.
+      responses:
+        '200':
+          description: Success; persisted before responding.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/X-Request-ID'
+            Cache-Control:
+              $ref: '#/components/headers/Cache-Control'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Resume'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResumePatch'
+      x-max-body-bytes: 131072
+  /api/resumes/{id}/revisions:
+    post:
+      operationId: confirmResumeFacts
+      x-implementation: implemented
+      tags:
+      - Resumes
+      summary: Confirm or edit base resume facts
+      description: Validate unique fact IDs and evidence, <=256 KiB JSON; append immutable revision and
+        CAS resume head in one transaction. Original file stays unchanged.
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema: *id001
+      - name: X-CSRF-Token
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 16
+        description: Signed CSRF token from GET /api/auth/csrf; also enforce same-origin Origin policy.
+      responses:
+        '201':
+          description: Success; persisted before responding.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/X-Request-ID'
+            Cache-Control:
+              $ref: '#/components/headers/Cache-Control'
+            Location:
+              description: Same-origin URL of accepted resource or task.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResumeConfirmed'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResumeConfirm'
+      x-max-body-bytes: 262144
+  /api/resumes/{id}/revisions/{revision_id}:
+    get:
+      operationId: getResumeRevision
+      x-implementation: implemented
+      tags:
+      - Resumes
+      summary: Read immutable confirmed base facts
+      description: Read immutable confirmed base facts
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema: *id001
+      - name: revision_id
+        in: path
+        required: true
+        schema: *id001
+      responses:
+        '200':
+          description: Success; persisted before responding.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/X-Request-ID'
+            Cache-Control:
+              $ref: '#/components/headers/Cache-Control'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResumeRevision'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /api/workspaces/{id}/generations:
+    post:
+      operationId: createGeneration
+      x-implementation: implemented
+      tags:
+      - Workspaces
+      summary: Create resume and cover letter tasks
+      description: Mock-only slice. Lock owner/workspace/documents, check confirmed selected revisions/profile
+        version and active task uniqueness. Atomically persist immutable run, two tasks, two outbox entries,
+        workspace version and replay response. No empty live-AI placeholder. A 202 is durable acceptance,
+        not successful generation.
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema: *id001
+      - name: X-CSRF-Token
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 16
+        description: Signed CSRF token from GET /api/auth/csrf; also enforce same-origin Origin policy.
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: One UUID per user operation. Retry identical body with same key. Replay saved response
+          before version checks; different body returns 409. Stored at least 24h and while tasks are nonterminal.
+      responses:
+        '202':
+          description: Success; persisted before responding.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/X-Request-ID'
+            Cache-Control:
+              $ref: '#/components/headers/Cache-Control'
+            Location:
+              description: Same-origin URL of accepted resource or task.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenerationAccepted'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerationCreate'
+      x-max-body-bytes: 131072
+  /api/workspaces/{id}/generations/{run_id}:
+    get:
+      operationId: getGeneration
+      x-implementation: implemented
+      tags:
+      - Workspaces
+      summary: Read generation and latest task per document
+      description: Read generation and latest task per document
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema: *id001
+      - name: run_id
+        in: path
+        required: true
+        schema: *id001
+      responses:
+        '200':
+          description: Success; persisted before responding.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/X-Request-ID'
+            Cache-Control:
+              $ref: '#/components/headers/Cache-Control'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Generation'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /api/workspaces/{id}/generations/{run_id}/retry:
+    post:
+      operationId: retryGenerationDocument
+      x-implementation: implemented
+      tags:
+      - Workspaces
+      summary: Retry only failed document
+      description: Current run only; preserve input snapshots and successful sibling. Reject completed/active
+        kind with 409. Create new task/outbox; terminal task stays unchanged. Advance workspace version;
+        GET workspace for current version.
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema: *id001
+      - name: run_id
+        in: path
+        required: true
+        schema: *id001
+      - name: X-CSRF-Token
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 16
+        description: Signed CSRF token from GET /api/auth/csrf; also enforce same-origin Origin policy.
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: One UUID per user operation. Retry identical body with same key. Replay saved response
+          before version checks; different body returns 409. Stored at least 24h and while tasks are nonterminal.
+      responses:
+        '202':
+          description: Success; persisted before responding.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/X-Request-ID'
+            Cache-Control:
+              $ref: '#/components/headers/Cache-Control'
+            Location:
+              description: Same-origin URL of accepted resource or task.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskAccepted'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerationRetry'
+      x-max-body-bytes: 131072
+  /api/workspaces/{id}/documents:
+    get:
+      operationId: listWorkspaceDocuments
+      x-implementation: implemented
+      tags:
+      - Documents
+      summary: Read the two document identities
+      description: Read the two document identities
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema: *id001
+      responses:
+        '200':
+          description: Success; persisted before responding.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/X-Request-ID'
+            Cache-Control:
+              $ref: '#/components/headers/Cache-Control'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /api/documents/{id}:
+    get:
+      operationId: getDocument
+      x-implementation: implemented
+      tags:
+      - Documents
+      summary: Read document head and version
+      description: Read document head and version
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema: *id001
+      responses:
+        '200':
+          description: Success; persisted before responding.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/X-Request-ID'
+            Cache-Control:
+              $ref: '#/components/headers/Cache-Control'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Document'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /api/documents/{id}/revisions:
+    get:
+      operationId: listDocumentRevisions
+      x-implementation: implemented
+      tags:
+      - Documents
+      summary: List immutable revisions and candidates
+      description: Descending created_at,id pagination. Current head is returned by GET document; other
+        revisions may be candidates or historical versions.
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema: *id001
+      - name: limit
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+      - name: cursor
+        in: query
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 2048
+      responses:
+        '200':
+          description: Success; persisted before responding.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/X-Request-ID'
+            Cache-Control:
+              $ref: '#/components/headers/Cache-Control'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentRevisionList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+    post:
+      operationId: saveDocumentRevision
+      x-implementation: implemented
+      tags:
+      - Documents
+      summary: Save manual document changes
+      description: Validate same document and content kind, <=256 KiB JSON. Base must equal current head
+        (including while a newer generation is running), or an owned current-run candidate if head is
+        empty. Preserve the base run provenance. Append manual revision and CAS head atomically; stale
+        versions return 409.
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema: *id001
+      - name: X-CSRF-Token
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 16
+        description: Signed CSRF token from GET /api/auth/csrf; also enforce same-origin Origin policy.
+      responses:
+        '201':
+          description: Success; persisted before responding.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/X-Request-ID'
+            Cache-Control:
+              $ref: '#/components/headers/Cache-Control'
+            Location:
+              description: Same-origin URL of accepted resource or task.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentSaved'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DocumentSave'
+      x-max-body-bytes: 262144
+  /api/documents/{id}/revisions/{revision_id}:
+    get:
+      operationId: getDocumentRevision
+      x-implementation: implemented
+      tags:
+      - Documents
+      summary: Read a specific revision
+      description: Read a specific revision
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema: *id001
+      - name: revision_id
+        in: path
+        required: true
+        schema: *id001
+      responses:
+        '200':
+          description: Success; persisted before responding.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/X-Request-ID'
+            Cache-Control:
+              $ref: '#/components/headers/Cache-Control'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentRevision'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /api/documents/{id}/refinements:
+    post:
+      operationId: refineDocument
+      x-implementation: contract-only
+      tags:
+      - Documents
+      summary: Generate a proposed edit
+      description: Pin selected current-run revision and instruction; mock only. Enforce one active generation/refinement
+        per document. Append candidate on success; never change head automatically.
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema: *id001
+      - name: X-CSRF-Token
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 16
+        description: Signed CSRF token from GET /api/auth/csrf; also enforce same-origin Origin policy.
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: One UUID per user operation. Retry identical body with same key. Replay saved response
+          before version checks; different body returns 409. Stored at least 24h and while tasks are nonterminal.
+      responses:
+        '202':
+          description: Success; persisted before responding.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/X-Request-ID'
+            Cache-Control:
+              $ref: '#/components/headers/Cache-Control'
+            Location:
+              description: Same-origin URL of accepted resource or task.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskAccepted'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefinementCreate'
+      x-max-body-bytes: 131072
+  /api/documents/{id}/apply:
+    post:
+      operationId: applyDocumentCandidate
+      x-implementation: implemented
+      tags:
+      - Documents
+      summary: Apply a chosen current-run candidate
+      description: CAS expected_version; revision must belong to this document and current run. Historical
+        restoration is not this command. No new model request; returns updated head/version.
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema: *id001
+      - name: X-CSRF-Token
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 16
+        description: Signed CSRF token from GET /api/auth/csrf; also enforce same-origin Origin policy.
+      responses:
+        '200':
+          description: Success; persisted before responding.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/X-Request-ID'
+            Cache-Control:
+              $ref: '#/components/headers/Cache-Control'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Document'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CandidateApply'
+      x-max-body-bytes: 131072
+  /api/documents/{id}/exports:
+    post:
+      operationId: createDocumentExport
+      x-implementation: implemented
+      tags:
+      - Documents
+      summary: Export saved revision as PDF or DOCX
+      description: Deduplicate revision/format/template. 200 only for a ready reusable artifact; active
+        returns 202. Failed/cancelled previous export creates replacement task on explicit new-key retry
+        while preserving export identity. Validate saved owned revision, same document and document kind.
+        No model call; glass UI excluded from export.
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema: *id001
+      - name: X-CSRF-Token
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 16
+        description: Signed CSRF token from GET /api/auth/csrf; also enforce same-origin Origin policy.
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: One UUID per user operation. Retry identical body with same key. Replay saved response
+          before version checks; different body returns 409. Stored at least 24h and while tasks are nonterminal.
+      responses:
+        '202':
+          description: Success; persisted before responding.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/X-Request-ID'
+            Cache-Control:
+              $ref: '#/components/headers/Cache-Control'
+            Location:
+              description: Same-origin URL of accepted resource or task.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentExport'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '200':
+          description: Success; persisted before responding.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/X-Request-ID'
+            Cache-Control:
+              $ref: '#/components/headers/Cache-Control'
+            Location:
+              description: Same-origin URL of accepted resource or task.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentExport'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExportCreate'
+      x-max-body-bytes: 131072
+  /api/documents/{id}/exports/{export_id}:
+    get:
+      operationId: getDocumentExport
+      x-implementation: implemented
+      tags:
+      - Documents
+      summary: Read export file/task references
+      description: Read export file/task references
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema: *id001
+      - name: export_id
+        in: path
+        required: true
+        schema: *id001
+      responses:
+        '200':
+          description: Success; persisted before responding.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/X-Request-ID'
+            Cache-Control:
+              $ref: '#/components/headers/Cache-Control'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentExport'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /api/tasks/{id}:
+    get:
+      operationId: getTask
+      x-implementation: implemented
+      tags:
+      - Tasks
+      summary: Get safe task snapshot
+      description: Get safe task snapshot
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema: *id001
+      responses:
+        '200':
+          description: Success; persisted before responding.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/X-Request-ID'
+            Cache-Control:
+              $ref: '#/components/headers/Cache-Control'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskSnapshot'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /api/tasks/{id}/events:
+    get:
+      operationId: streamTask
+      x-implementation: contract-only
+      tags:
+      - Tasks
+      summary: Stream current task state
+      description: SSE event task_state; data is TaskSnapshot JSON (task_id,state_version). Subscribe
+        before fresh read; DB reconciliation repairs missed notifications. No replay guarantee. Heartbeats,
+        auth expiry, bounded per-write deadlines, terminal close, polling fallback. No-store. Never stream
+        prompt, secret or private storage path.
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema: *id001
+      responses:
+        '200':
+          description: Success; persisted before responding.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/X-Request-ID'
+            Cache-Control:
+              $ref: '#/components/headers/Cache-Control'
+          content:
+            text/event-stream:
+              schema:
+                type: string
+              example: 'event: task_state
+
+                data: {"task_id":"10000000-0000-4000-8000-000000000001","kind":"tailor_resume","status":"running","stage":"generating","state_version":2,"attempts":1,"cancel_requested":false,"result":null,"error_code":null,"created_at":"2026-09-21T00:00:00Z","finished_at":null}
+
+
+                '
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /api/tasks/{id}/cancel:
+    post:
+      operationId: cancelTask
+      x-implementation: implemented
+      tags:
+      - Tasks
+      summary: Request cancellation or return terminal state
+      description: In the local mock runtime, atomically mark any nonterminal task cancelled and consume
+        pending outbox deliveries. A running calculation may finish in memory but its fenced commit is
+        rejected. Return terminal tasks unchanged. No external model calls or billing exist in this slice.
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema: *id001
+      - name: X-CSRF-Token
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 16
+        description: Signed CSRF token from GET /api/auth/csrf; also enforce same-origin Origin policy.
+      responses:
+        '200':
+          description: Success; persisted before responding.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/X-Request-ID'
+            Cache-Control:
+              $ref: '#/components/headers/Cache-Control'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskSnapshot'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+  /api/workspaces/{id}/track:
+    post:
+      operationId: trackWorkspace
+      x-implementation: contract-only
+      tags:
+      - Workspaces
+      summary: Save workspace to application tracker
+      description: Confirm company/title, check selected document revisions belong to workspace. Atomically
+        create Saved application and pin selected revisions, or return existing association (200). One
+        application per workspace. Export never marks Applied. Updating linked versions later requires
+        a separate explicit command.
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema: *id001
+      - name: X-CSRF-Token
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 16
+        description: Signed CSRF token from GET /api/auth/csrf; also enforce same-origin Origin policy.
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: One UUID per user operation. Retry identical body with same key. Replay saved response
+          before version checks; different body returns 409. Stored at least 24h and while tasks are nonterminal.
+      responses:
+        '201':
+          description: Success; persisted before responding.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/X-Request-ID'
+            Cache-Control:
+              $ref: '#/components/headers/Cache-Control'
+            Location:
+              description: Same-origin URL of accepted resource or task.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkspaceTracked'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '200':
+          description: Success; persisted before responding.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/X-Request-ID'
+            Cache-Control:
+              $ref: '#/components/headers/Cache-Control'
+            Location:
+              description: Same-origin URL of accepted resource or task.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkspaceTracked'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TrackWorkspace'
+      x-max-body-bytes: 131072
+  /api/workspaces/{id}/archive:
+    post:
+      operationId: archiveWorkspace
+      x-implementation: contract-only
+      tags:
+      - Workspaces
+      summary: Archive and cancel unfinished work
+      description: Owner/version transaction sets archived_at and cancels owned active tasks. History
+        remains readable; new mutations return 409. Duplicate uncertain requests require GET to reconcile
+        version.
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema: *id001
+      - name: X-CSRF-Token
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 16
+        description: Signed CSRF token from GET /api/auth/csrf; also enforce same-origin Origin policy.
+      responses:
+        '200':
+          description: Success; persisted before responding.
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/X-Request-ID'
+            Cache-Control:
+              $ref: '#/components/headers/Cache-Control'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Workspace'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StudioVersion'
+      x-max-body-bytes: 131072
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: applyflow_session
+      description: Short-lived signed JWT; HttpOnly, Secure on HTTPS, SameSite=Lax, Path=/.
+  schemas:
+    ApplicationStatus:
+      type: string
+      enum:
+      - saved
+      - applied
+      - hr_interview
+      - technical_interview
+      - final_interview
+      - offer
+      - rejected
+      - withdrawn
+    Problem:
+      type: object
+      additionalProperties: false
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+          minimum: 400
+          maximum: 599
+        code:
+          type: string
+        request_id:
+          type: string
+        current_version:
+          type: integer
+          format: int64
+          minimum: 1
+          maximum: 9007199254740991
+        errors:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            properties:
+              field:
+                type: string
+              code:
+                type: string
+            required:
+            - field
+            - code
+      required:
+      - type
+      - title
+      - status
+      - code
+      - request_id
+      example:
+        type: urn:applyflow:problem:version-conflict
+        title: Resource changed
+        status: 409
+        code: version_conflict
+        request_id: example-request
+        current_version: 2
+    Credentials:
+      type: object
+      additionalProperties: false
+      properties:
+        email:
+          type: string
+          maxLength: 254
+          format: email
+          minLength: 3
+        password:
+          type: string
+          maxLength: 72
+          minLength: 12
+          writeOnly: true
+          description: 12+ Unicode characters, at most 72 UTF-8 bytes for bcrypt; reject, never truncate.
+            Do not trim/normalize passwords.
+      required:
+      - email
+      - password
+      example:
+        email: alex@example.com
+        password: example-password-123
+    LoginCredentials:
+      type: object
+      additionalProperties: false
+      properties:
+        email:
+          type: string
+          maxLength: 254
+          format: email
+          minLength: 3
+        password:
+          type: string
+          maxLength: 72
+          minLength: 1
+          writeOnly: true
+          description: At most 72 UTF-8 bytes; do not trim or normalize.
+      required:
+      - email
+      - password
+    Identity:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          maxLength: 254
+          format: email
+          minLength: 3
+        profile_version:
+          type: integer
+          format: int64
+          minimum: 1
+          maximum: 9007199254740991
+        created_at:
+          type: string
+          format: date-time
+      required:
+      - id
+      - email
+      - profile_version
+      - created_at
+    Session:
+      type: object
+      additionalProperties: false
+      properties:
+        user:
+          $ref: '#/components/schemas/Identity'
+        expires_at:
+          type: string
+          format: date-time
+      required:
+      - user
+      - expires_at
+    CSRFToken:
+      type: object
+      additionalProperties: false
+      properties:
+        csrf_token:
+          type: string
+          minLength: 16
+        expires_at:
+          type: string
+          format: date-time
+      required:
+      - csrf_token
+      - expires_at
+    ProfileBasics:
+      type: object
+      additionalProperties: false
+      properties:
+        display_name:
+          anyOf:
+          - type: string
+            maxLength: 100
+            minLength: 1
+          - type: 'null'
+        contact_email:
+          anyOf:
+          - type: string
+            maxLength: 254
+            format: email
+            minLength: 3
+          - type: 'null'
+        phone:
+          anyOf:
+          - type: string
+            maxLength: 32
+            minLength: 1
+          - type: 'null'
+        city:
+          anyOf:
+          - type: string
+            maxLength: 100
+            minLength: 1
+          - type: 'null'
+        country_code:
+          anyOf:
+          - type: string
+            pattern: ^[A-Z]{2}$
+          - type: 'null'
+        summary:
+          anyOf:
+          - type: string
+            maxLength: 2000
+            minLength: 1
+          - type: 'null'
+        github_url:
+          anyOf:
+          - type: string
+            maxLength: 2048
+            format: uri
+            pattern: ^https://\S+$
+          - type: 'null'
+        linkedin_url:
+          anyOf:
+          - type: string
+            maxLength: 2048
+            format: uri
+            pattern: ^https://\S+$
+          - type: 'null'
+        website_url:
+          anyOf:
+          - type: string
+            maxLength: 2048
+            format: uri
+            pattern: ^https://\S+$
+          - type: 'null'
+      required:
+      - display_name
+      - contact_email
+      - phone
+      - city
+      - country_code
+      - summary
+      - github_url
+      - linkedin_url
+      - website_url
+    Profile:
+      type: object
+      additionalProperties: false
+      properties:
+        basics:
+          $ref: '#/components/schemas/ProfileBasics'
+        profile_version:
+          type: integer
+          format: int64
+          minimum: 1
+          maximum: 9007199254740991
+      required:
+      - basics
+      - profile_version
+    ProfilePatch:
+      type: object
+      additionalProperties: false
+      properties:
+        expected_version:
+          type: integer
+          format: int64
+          minimum: 1
+          maximum: 9007199254740991
+        basics:
+          type: object
+          additionalProperties: false
+          properties:
+            display_name:
+              anyOf:
+              - type: string
+                maxLength: 100
+                minLength: 1
+              - type: 'null'
+            contact_email:
+              anyOf:
+              - type: string
+                maxLength: 254
+                format: email
+                minLength: 3
+              - type: 'null'
+            phone:
+              anyOf:
+              - type: string
+                maxLength: 32
+                minLength: 1
+              - type: 'null'
+            city:
+              anyOf:
+              - type: string
+                maxLength: 100
+                minLength: 1
+              - type: 'null'
+            country_code:
+              anyOf:
+              - type: string
+                pattern: ^[A-Z]{2}$
+              - type: 'null'
+            summary:
+              anyOf:
+              - type: string
+                maxLength: 2000
+                minLength: 1
+              - type: 'null'
+            github_url:
+              anyOf:
+              - type: string
+                maxLength: 2048
+                format: uri
+                pattern: ^https://\S+$
+              - type: 'null'
+            linkedin_url:
+              anyOf:
+              - type: string
+                maxLength: 2048
+                format: uri
+                pattern: ^https://\S+$
+              - type: 'null'
+            website_url:
+              anyOf:
+              - type: string
+                maxLength: 2048
+                format: uri
+                pattern: ^https://\S+$
+              - type: 'null'
+          minProperties: 1
+      required:
+      - expected_version
+      - basics
+      example:
+        expected_version: 1
+        basics:
+          display_name: Alex
+          city: Sydney
+          website_url: null
+    ProfileVersion:
+      type: object
+      additionalProperties: false
+      properties:
+        profile_version:
+          type: integer
+          format: int64
+          minimum: 1
+          maximum: 9007199254740991
+      required:
+      - profile_version
+    Skill:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          maxLength: 100
+        slug:
+          type: string
+        aliases:
+          type: array
+          items:
+            type: string
+      required:
+      - id
+      - name
+      - slug
+      - aliases
+    SkillList:
+      type: object
+      additionalProperties: false
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Skill'
+        has_more:
+          type: boolean
+      required:
+      - items
+      - has_more
+    UserSkill:
+      type: object
+      additionalProperties: false
+      properties:
+        skill:
+          $ref: '#/components/schemas/Skill'
+        proficiency:
+          type: string
+          enum:
+          - new
+          - learning
+          - working
+          - proficient
+        notes:
+          type: string
+          maxLength: 1000
+        updated_at:
+          type: string
+          format: date-time
+      required:
+      - skill
+      - proficiency
+      - notes
+      - updated_at
+    UserSkillWrite:
+      type: object
+      additionalProperties: false
+      properties:
+        expected_version:
+          type: integer
+          format: int64
+          minimum: 1
+          maximum: 9007199254740991
+        proficiency:
+          type: string
+          enum:
+          - new
+          - learning
+          - working
+          - proficient
+        notes:
+          type: string
+          maxLength: 1000
+          default: ''
+      required:
+      - expected_version
+      - proficiency
+    UserSkillResult:
+      type: object
+      additionalProperties: false
+      properties:
+        item:
+          $ref: '#/components/schemas/UserSkill'
+        profile_version:
+          type: integer
+          format: int64
+          minimum: 1
+          maximum: 9007199254740991
+      required:
+      - item
+      - profile_version
+    UserSkillList:
+      type: object
+      additionalProperties: false
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserSkill'
+        profile_version:
+          type: integer
+          format: int64
+          minimum: 1
+          maximum: 9007199254740991
+      required:
+      - items
+      - profile_version
+    ApplicationCreate:
+      type: object
+      additionalProperties: false
+      properties:
+        company:
+          type: string
+          maxLength: 200
+          minLength: 1
+        role_title:
+          type: string
+          maxLength: 200
+          minLength: 1
+        location:
+          anyOf:
+          - type: string
+            maxLength: 200
+            minLength: 1
+          - type: 'null'
+        job_url:
+          anyOf:
+          - type: string
+            maxLength: 2048
+            format: uri
+            pattern: ^https://\S+$
+          - type: 'null'
+        job_description:
+          type: string
+          maxLength: 65536
+          description: UTF-8 byte length must also be <=65536. Empty is allowed until analysis is requested.
+        status:
+          $ref: '#/components/schemas/ApplicationStatus'
+        source:
+          anyOf:
+          - type: string
+            maxLength: 100
+            minLength: 1
+          - type: 'null'
+        salary:
+          anyOf:
+          - type: string
+            maxLength: 200
+            minLength: 1
+          - type: 'null'
+        date_applied:
+          anyOf:
+          - type: string
+            format: date
+          - type: 'null'
+        first_response_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+        notes:
+          type: string
+          maxLength: 10000
+      required:
+      - company
+      - role_title
+      example:
+        company: Example Pty Ltd
+        role_title: Backend Engineer
+        status: saved
+        job_description: Go and PostgreSQL experience.
+    ApplicationPatch:
+      type: object
+      additionalProperties: false
+      properties:
+        expected_version:
+          type: integer
+          format: int64
+          minimum: 1
+          maximum: 9007199254740991
+        company:
+          type: string
+          maxLength: 200
+          minLength: 1
+        role_title:
+          type: string
+          maxLength: 200
+          minLength: 1
+        location:
+          anyOf:
+          - type: string
+            maxLength: 200
+            minLength: 1
+          - type: 'null'
+        job_url:
+          anyOf:
+          - type: string
+            maxLength: 2048
+            format: uri
+            pattern: ^https://\S+$
+          - type: 'null'
+        job_description:
+          type: string
+          maxLength: 65536
+          description: UTF-8 byte length must also be <=65536. Empty is allowed until analysis is requested.
+        status:
+          $ref: '#/components/schemas/ApplicationStatus'
+        source:
+          anyOf:
+          - type: string
+            maxLength: 100
+            minLength: 1
+          - type: 'null'
+        salary:
+          anyOf:
+          - type: string
+            maxLength: 200
+            minLength: 1
+          - type: 'null'
+        date_applied:
+          anyOf:
+          - type: string
+            format: date
+          - type: 'null'
+        first_response_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+        notes:
+          type: string
+          maxLength: 10000
+      required:
+      - expected_version
+      minProperties: 2
+      example:
+        expected_version: 1
+        status: applied
+        date_applied: '2026-09-21'
+    ArchiveRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        expected_version:
+          type: integer
+          format: int64
+          minimum: 1
+          maximum: 9007199254740991
+      required:
+      - expected_version
+    Application:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        company:
+          type: string
+          maxLength: 200
+          minLength: 1
+        role_title:
+          type: string
+          maxLength: 200
+          minLength: 1
+        location:
+          anyOf:
+          - type: string
+            maxLength: 200
+            minLength: 1
+          - type: 'null'
+        job_url:
+          anyOf:
+          - type: string
+            maxLength: 2048
+            format: uri
+            pattern: ^https://\S+$
+          - type: 'null'
+        job_description:
+          type: string
+          maxLength: 65536
+          description: UTF-8 byte length must also be <=65536. Empty is allowed until analysis is requested.
+        status:
+          $ref: '#/components/schemas/ApplicationStatus'
+        source:
+          anyOf:
+          - type: string
+            maxLength: 100
+            minLength: 1
+          - type: 'null'
+        salary:
+          anyOf:
+          - type: string
+            maxLength: 200
+            minLength: 1
+          - type: 'null'
+        date_applied:
+          anyOf:
+          - type: string
+            format: date
+          - type: 'null'
+        first_response_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+        notes:
+          type: string
+          maxLength: 10000
+        version:
+          type: integer
+          format: int64
+          minimum: 1
+          maximum: 9007199254740991
+        jd_version:
+          type: integer
+          format: int64
+          minimum: 1
+          maximum: 9007199254740991
+        archived_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      required:
+      - id
+      - company
+      - role_title
+      - location
+      - job_url
+      - job_description
+      - status
+      - source
+      - salary
+      - date_applied
+      - first_response_at
+      - notes
+      - version
+      - jd_version
+      - archived_at
+      - created_at
+      - updated_at
+    ApplicationListItem:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        company:
+          type: string
+          maxLength: 200
+        role_title:
+          type: string
+          maxLength: 200
+        status:
+          $ref: '#/components/schemas/ApplicationStatus'
+        location:
+          anyOf:
+          - type: string
+            maxLength: 200
+          - type: 'null'
+        date_applied:
+          anyOf:
+          - type: string
+            format: date
+          - type: 'null'
+        version:
+          type: integer
+          format: int64
+          minimum: 1
+          maximum: 9007199254740991
+        archived_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+        updated_at:
+          type: string
+          format: date-time
+      required:
+      - id
+      - company
+      - role_title
+      - status
+      - location
+      - date_applied
+      - version
+      - archived_at
+      - updated_at
+    ApplicationList:
+      type: object
+      additionalProperties: false
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ApplicationListItem'
+        next_cursor:
+          anyOf:
+          - type: string
+          - type: 'null'
+      required:
+      - items
+      - next_cursor
+    StatusHistoryItem:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        from_status:
+          anyOf:
+          - $ref: '#/components/schemas/ApplicationStatus'
+          - type: 'null'
+        to_status:
+          $ref: '#/components/schemas/ApplicationStatus'
+        application_version:
+          type: integer
+          format: int64
+          minimum: 1
+          maximum: 9007199254740991
+        occurred_at:
+          type: string
+          format: date-time
+        recorded_at:
+          type: string
+          format: date-time
+      required:
+      - id
+      - from_status
+      - to_status
+      - application_version
+      - occurred_at
+      - recorded_at
+    StatusHistory:
+      type: object
+      additionalProperties: false
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/StatusHistoryItem'
+        next_cursor:
+          anyOf:
+          - type: string
+          - type: 'null'
+      required:
+      - items
+      - next_cursor
+    StudioVersion:
+      type: object
+      additionalProperties: false
+      properties:
+        expected_version: &id002
+          type: integer
+          minimum: 1
+          maximum: 9007199254740991
+          format: int64
+      required:
+      - expected_version
+    DocumentKind:
+      type: string
+      enum:
+      - resume
+      - cover_letter
+    FilePurpose:
+      type: string
+      enum:
+      - jd_image
+      - base_resume
+      - export
+    FileUpload:
+      type: object
+      additionalProperties: false
+      properties:
+        purpose:
+          type: string
+          enum:
+          - base_resume
+        file:
+          type: string
+          format: binary
+          description: One PDF or DOCX base resume, at most 10485760 bytes. Screenshot ingestion is deferred.
+      required:
+      - purpose
+      - file
+    PrivateFile:
+      type: object
+      additionalProperties: false
+      properties:
+        id: *id001
+        purpose:
+          $ref: '#/components/schemas/FilePurpose'
+        state:
+          type: string
+          enum:
+          - ready
+        original_name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        media_type:
+          type: string
+          enum:
+          - image/png
+          - image/jpeg
+          - image/webp
+          - application/pdf
+          - application/vnd.openxmlformats-officedocument.wordprocessingml.document
+        byte_size:
+          type: integer
+          minimum: 1
+          maximum: 10485760
+        sha256:
+          type: string
+          minLength: 64
+          maxLength: 64
+          pattern: ^[a-f0-9]{64}$
+        created_at: &id003
+          type: string
+          format: date-time
+      required:
+      - id
+      - purpose
+      - state
+      - original_name
+      - media_type
+      - byte_size
+      - sha256
+      - created_at
+    WorkspaceCreate:
+      type: object
+      additionalProperties: false
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 160
+      required: []
+      description: Omitted title becomes Untitled application; reject blank-only strings.
+    WorkspacePatch:
+      type: object
+      additionalProperties: false
+      properties:
+        expected_version: *id002
+        title:
+          type: string
+          minLength: 1
+          maxLength: 160
+        resume_revision_id:
+          anyOf:
+          - *id001
+          - type: 'null'
+      required:
+      - expected_version
+      minProperties: 2
+    Workspace:
+      type: object
+      additionalProperties: false
+      properties:
+        id: *id001
+        title:
+          type: string
+          minLength: 1
+          maxLength: 160
+        version: *id002
+        current_source_id:
+          anyOf:
+          - *id001
+          - type: 'null'
+        job_revision_id:
+          anyOf:
+          - *id001
+          - type: 'null'
+        resume_revision_id:
+          anyOf:
+          - *id001
+          - type: 'null'
+        current_run_id:
+          anyOf:
+          - *id001
+          - type: 'null'
+        application_id:
+          anyOf:
+          - *id001
+          - type: 'null'
+        archived_at:
+          anyOf:
+          - *id003
+          - type: 'null'
+        created_at: *id003
+        updated_at: *id003
+      required:
+      - id
+      - title
+      - version
+      - current_source_id
+      - job_revision_id
+      - resume_revision_id
+      - current_run_id
+      - application_id
+      - archived_at
+      - created_at
+      - updated_at
+    WorkspaceList:
+      type: object
+      additionalProperties: false
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Workspace'
+          minItems: 0
+          maxItems: 100
+        next_cursor:
+          anyOf:
+          - type: string
+            minLength: 1
+            maxLength: 2048
+          - type: 'null'
+      required:
+      - items
+      - next_cursor
+    JobTextSource:
+      type: object
+      additionalProperties: false
+      properties:
+        kind:
+          const: text
+          type: string
+        text:
+          type: string
+          minLength: 1
+          maxLength: 65536
+          pattern: .*\S.*
+      required:
+      - kind
+      - text
+    JobURLSource:
+      type: object
+      additionalProperties: false
+      properties:
+        kind:
+          const: url
+          type: string
+        url:
+          type: string
+          minLength: 1
+          maxLength: 2048
+          format: uri
+          pattern: ^https://[^\s]+$
+      required:
+      - kind
+      - url
+    JobImageSource:
+      type: object
+      additionalProperties: false
+      properties:
+        kind:
+          const: image
+          type: string
+        file_ids:
+          type: array
+          items: *id001
+          minItems: 1
+          maxItems: 5
+          uniqueItems: true
+      required:
+      - kind
+      - file_ids
+    JobSourceInput:
+      oneOf:
+      - $ref: '#/components/schemas/JobTextSource'
+      - $ref: '#/components/schemas/JobURLSource'
+      - $ref: '#/components/schemas/JobImageSource'
+    SourceCreate:
+      type: object
+      additionalProperties: false
+      properties:
+        expected_version: *id002
+        source:
+          $ref: '#/components/schemas/JobTextSource'
+      required:
+      - expected_version
+      - source
+      example:
+        expected_version: 1
+        source:
+          kind: text
+          text: 'Backend Engineer: Go and PostgreSQL.'
+    JobSource:
+      type: object
+      additionalProperties: false
+      properties:
+        id: *id001
+        workspace_id: *id001
+        source_version: *id002
+        source:
+          $ref: '#/components/schemas/JobSourceInput'
+        created_at: *id003
+      required:
+      - id
+      - workspace_id
+      - source_version
+      - source
+      - created_at
+    SourceAccepted:
+      type: object
+      additionalProperties: false
+      properties:
+        source:
+          $ref: '#/components/schemas/JobSource'
+        workspace_version: *id002
+        task_id: *id001
+      required:
+      - source
+      - workspace_version
+      - task_id
+    Uncertainty:
+      type: object
+      additionalProperties: false
+      properties:
+        field:
+          type: string
+          enum:
+          - company
+          - role_title
+          - job_description
+          - resume_fact
+        message:
+          type: string
+          minLength: 1
+          maxLength: 400
+        excerpt:
+          type: string
+          minLength: 0
+          maxLength: 1000
+      required:
+      - field
+      - message
+      - excerpt
+    JobConfirm:
+      type: object
+      additionalProperties: false
+      properties:
+        expected_version: *id002
+        source_id: *id001
+        expected_source_version: *id002
+        company:
+          type: string
+          minLength: 1
+          maxLength: 200
+          pattern: .*\S.*
+        role_title:
+          type: string
+          minLength: 1
+          maxLength: 200
+          pattern: .*\S.*
+        job_description:
+          type: string
+          minLength: 1
+          maxLength: 65536
+          pattern: .*\S.*
+      required:
+      - expected_version
+      - source_id
+      - expected_source_version
+      - company
+      - role_title
+      - job_description
+    JobRevision:
+      type: object
+      additionalProperties: false
+      properties:
+        id: *id001
+        workspace_id: *id001
+        source_id: *id001
+        company:
+          type: string
+          minLength: 1
+          maxLength: 200
+        role_title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        job_description:
+          type: string
+          minLength: 1
+          maxLength: 65536
+        confirmed_at: *id003
+      required:
+      - id
+      - workspace_id
+      - source_id
+      - company
+      - role_title
+      - job_description
+      - confirmed_at
+    JobConfirmed:
+      type: object
+      additionalProperties: false
+      properties:
+        revision:
+          $ref: '#/components/schemas/JobRevision'
+        workspace_version: *id002
+      required:
+      - revision
+      - workspace_version
+    ResumeImport:
+      type: object
+      additionalProperties: false
+      properties:
+        file_id: *id001
+        name:
+          type: string
+          minLength: 1
+          maxLength: 160
+        import_mode:
+          type: string
+          const: manual
+          description: Explicit manual facts workflow; automatic extraction is not yet available.
+      required:
+      - file_id
+      - name
+      - import_mode
+    Resume:
+      type: object
+      additionalProperties: false
+      properties:
+        id: *id001
+        name:
+          type: string
+          minLength: 1
+          maxLength: 160
+        source_file_id: *id001
+        current_revision_id:
+          anyOf:
+          - *id001
+          - type: 'null'
+        is_default: &id004
+          type: boolean
+        version: *id002
+        latest_task_id:
+          anyOf:
+          - *id001
+          - type: 'null'
+        created_at: *id003
+        updated_at: *id003
+      required:
+      - id
+      - name
+      - source_file_id
+      - current_revision_id
+      - is_default
+      - version
+      - latest_task_id
+      - created_at
+      - updated_at
+    ResumeList:
+      type: object
+      additionalProperties: false
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Resume'
+          minItems: 0
+          maxItems: 100
+        next_cursor:
+          anyOf:
+          - type: string
+            minLength: 1
+            maxLength: 2048
+          - type: 'null'
+      required:
+      - items
+      - next_cursor
+    ResumeImported:
+      type: object
+      additionalProperties: false
+      properties:
+        resume:
+          $ref: '#/components/schemas/Resume'
+        task_id:
+          type: 'null'
+          description: Manual import creates no task.
+      required:
+      - resume
+      - task_id
+    ResumePatch:
+      type: object
+      additionalProperties: false
+      properties:
+        expected_version: *id002
+        name:
+          type: string
+          minLength: 1
+          maxLength: 160
+        is_default: *id004
+      required:
+      - expected_version
+      minProperties: 2
+    FactEvidence:
+      type: object
+      additionalProperties: false
+      properties:
+        source:
+          type: string
+          enum:
+          - file
+          - user
+        page:
+          anyOf:
+          - type: integer
+            minimum: 1
+            maximum: 20
+          - type: 'null'
+        excerpt:
+          type: string
+          minLength: 0
+          maxLength: 4000
+      required:
+      - source
+      - page
+      - excerpt
+    ResumeFact:
+      type: object
+      additionalProperties: false
+      properties:
+        id: *id001
+        category:
+          type: string
+          enum:
+          - summary
+          - experience
+          - education
+          - skill
+          - project
+          - other
+        text:
+          type: string
+          minLength: 1
+          maxLength: 4000
+          pattern: .*\S.*
+        evidence:
+          $ref: '#/components/schemas/FactEvidence'
+      required:
+      - id
+      - category
+      - text
+      - evidence
+    ResumeFacts:
+      type: array
+      items:
+        $ref: '#/components/schemas/ResumeFact'
+      minItems: 1
+      maxItems: 200
+      description: Fact IDs must be unique. Entire confirmation body <= 256 KiB. User confirms these claims;
+        parser output alone is not a confirmed revision.
+    ResumeConfirm:
+      type: object
+      additionalProperties: false
+      properties:
+        expected_version: *id002
+        facts:
+          $ref: '#/components/schemas/ResumeFacts'
+      required:
+      - expected_version
+      - facts
+    ResumeRevision:
+      type: object
+      additionalProperties: false
+      properties:
+        id: *id001
+        resume_id: *id001
+        parent_revision_id:
+          anyOf:
+          - *id001
+          - type: 'null'
+        schema_version:
+          type: integer
+          const: 1
+        facts:
+          $ref: '#/components/schemas/ResumeFacts'
+        confirmed_at: *id003
+      required:
+      - id
+      - resume_id
+      - parent_revision_id
+      - schema_version
+      - facts
+      - confirmed_at
+    ResumeConfirmed:
+      type: object
+      additionalProperties: false
+      properties:
+        revision:
+          $ref: '#/components/schemas/ResumeRevision'
+        resume_version: *id002
+      required:
+      - revision
+      - resume_version
+    GenerationCreate:
+      type: object
+      additionalProperties: false
+      properties:
+        expected_version: *id002
+        job_revision_id: *id001
+        resume_revision_id: *id001
+        expected_profile_version: *id002
+        execution_mode:
+          type: string
+          const: mock
+        locale:
+          type: string
+          const: en
+      required:
+      - expected_version
+      - job_revision_id
+      - resume_revision_id
+      - expected_profile_version
+      - execution_mode
+      - locale
+      description: This contract slice only supports explicit mock execution. Live AI requires the credential/usage
+        contract and migration before enabling it. Replay precedes source-version checks.
+      example:
+        expected_version: 3
+        job_revision_id: 10000000-0000-4000-8000-000000000001
+        resume_revision_id: 10000000-0000-4000-8000-000000000001
+        expected_profile_version: 1
+        execution_mode: mock
+        locale: en
+    GenerationAccepted:
+      type: object
+      additionalProperties: false
+      properties:
+        run_id: *id001
+        workspace_id: *id001
+        workspace_version: *id002
+        resume_task_id: *id001
+        cover_letter_task_id: *id001
+      required:
+      - run_id
+      - workspace_id
+      - workspace_version
+      - resume_task_id
+      - cover_letter_task_id
+    TaskStatus:
+      type: string
+      enum:
+      - queued
+      - running
+      - retry_wait
+      - completed
+      - failed
+      - cancelled
+    TaskKind:
+      type: string
+      enum:
+      - extract_jd
+      - parse_resume
+      - tailor_resume
+      - write_cover_letter
+      - revise_document
+      - export_document
+    ExtractedJob:
+      type: object
+      additionalProperties: false
+      properties:
+        kind:
+          type: string
+          const: job_extraction
+        company:
+          anyOf:
+          - type: string
+            minLength: 1
+            maxLength: 200
+          - type: 'null'
+        role_title:
+          anyOf:
+          - type: string
+            minLength: 1
+            maxLength: 200
+          - type: 'null'
+        job_description:
+          type: string
+          minLength: 1
+          maxLength: 65536
+        uncertainties:
+          type: array
+          items:
+            $ref: '#/components/schemas/Uncertainty'
+          minItems: 0
+          maxItems: 100
+      required:
+      - kind
+      - company
+      - role_title
+      - job_description
+      - uncertainties
+    ExtractedResume:
+      type: object
+      additionalProperties: false
+      properties:
+        kind:
+          type: string
+          const: resume_extraction
+        facts:
+          type: array
+          items:
+            $ref: '#/components/schemas/ResumeFact'
+          minItems: 0
+          maxItems: 200
+        uncertainties:
+          type: array
+          items:
+            $ref: '#/components/schemas/Uncertainty'
+          minItems: 0
+          maxItems: 100
+      required:
+      - kind
+      - facts
+      - uncertainties
+    DocumentTaskResult:
+      type: object
+      additionalProperties: false
+      properties:
+        kind:
+          type: string
+          const: document
+        document_id: *id001
+        revision_id: *id001
+      required:
+      - kind
+      - document_id
+      - revision_id
+    ExportTaskResult:
+      type: object
+      additionalProperties: false
+      properties:
+        kind:
+          type: string
+          const: export
+        export_id: *id001
+        file_id: *id001
+      required:
+      - kind
+      - export_id
+      - file_id
+    TaskResult:
+      oneOf:
+      - $ref: '#/components/schemas/ExtractedJob'
+      - $ref: '#/components/schemas/ExtractedResume'
+      - $ref: '#/components/schemas/DocumentTaskResult'
+      - $ref: '#/components/schemas/ExportTaskResult'
+    TaskSnapshot:
+      type: object
+      additionalProperties: false
+      properties:
+        kind:
+          $ref: '#/components/schemas/TaskKind'
+        status:
+          $ref: '#/components/schemas/TaskStatus'
+        stage:
+          type: string
+          enum:
+          - queued
+          - extracting
+          - generating
+          - validating
+          - saving
+          - exporting
+          - retry_wait
+          - completed
+          - failed
+          - cancelled
+        state_version: *id002
+        attempts:
+          type: integer
+          minimum: 0
+          maximum: 5
+        cancel_requested: *id004
+        result:
+          anyOf:
+          - $ref: '#/components/schemas/TaskResult'
+          - type: 'null'
+        error_code:
+          anyOf:
+          - type: string
+            minLength: 1
+            maxLength: 80
+          - type: 'null'
+        created_at: *id003
+        finished_at:
+          anyOf:
+          - *id003
+          - type: 'null'
+        task_id: *id001
+      required:
+      - task_id
+      - kind
+      - status
+      - stage
+      - state_version
+      - attempts
+      - cancel_requested
+      - result
+      - error_code
+      - created_at
+      - finished_at
+      description: Safe view only; excludes input snapshots, lease/fence, credentials and private storage
+        keys. Stage and result must agree with kind/status; completed has matching non-null result.
+      allOf:
+      - if:
+          properties:
+            status:
+              const: completed
+          required:
+          - status
+        then:
+          properties:
+            result:
+              $ref: '#/components/schemas/TaskResult'
+            cancel_requested:
+              const: false
+        else:
+          properties:
+            result:
+              type: 'null'
+      - if:
+          properties:
+            status:
+              enum:
+              - completed
+              - failed
+              - cancelled
+          required:
+          - status
+        then:
+          properties:
+            finished_at:
+              type: string
+              format: date-time
+        else:
+          properties:
+            finished_at:
+              type: 'null'
+      - if:
+          properties:
+            status:
+              const: queued
+          required:
+          - status
+        then:
+          properties:
+            stage:
+              const: queued
+      - if:
+          properties:
+            status:
+              const: retry_wait
+          required:
+          - status
+        then:
+          properties:
+            stage:
+              const: retry_wait
+      - if:
+          properties:
+            status:
+              const: completed
+          required:
+          - status
+        then:
+          properties:
+            stage:
+              const: completed
+      - if:
+          properties:
+            status:
+              const: failed
+          required:
+          - status
+        then:
+          properties:
+            stage:
+              const: failed
+      - if:
+          properties:
+            status:
+              const: cancelled
+          required:
+          - status
+        then:
+          properties:
+            stage:
+              const: cancelled
+      - if:
+          properties:
+            kind:
+              enum:
+              - extract_jd
+            status:
+              const: completed
+          required:
+          - kind
+          - status
+        then:
+          properties:
+            result:
+              $ref: '#/components/schemas/ExtractedJob'
+      - if:
+          properties:
+            kind:
+              enum:
+              - parse_resume
+            status:
+              const: completed
+          required:
+          - kind
+          - status
+        then:
+          properties:
+            result:
+              $ref: '#/components/schemas/ExtractedResume'
+      - if:
+          properties:
+            kind:
+              enum:
+              - tailor_resume
+              - write_cover_letter
+              - revise_document
+            status:
+              const: completed
+          required:
+          - kind
+          - status
+        then:
+          properties:
+            result:
+              $ref: '#/components/schemas/DocumentTaskResult'
+      - if:
+          properties:
+            kind:
+              enum:
+              - export_document
+            status:
+              const: completed
+          required:
+          - kind
+          - status
+        then:
+          properties:
+            result:
+              $ref: '#/components/schemas/ExportTaskResult'
+    Generation:
+      type: object
+      additionalProperties: false
+      properties:
+        id: *id001
+        workspace_id: *id001
+        job_revision_id: *id001
+        resume_revision_id: *id001
+        profile_version: *id002
+        execution_mode:
+          type: string
+          const: mock
+        locale:
+          type: string
+          const: en
+        resume_task:
+          $ref: '#/components/schemas/TaskSnapshot'
+        cover_letter_task:
+          $ref: '#/components/schemas/TaskSnapshot'
+        created_at: *id003
+      required:
+      - id
+      - workspace_id
+      - job_revision_id
+      - resume_revision_id
+      - profile_version
+      - execution_mode
+      - locale
+      - resume_task
+      - cover_letter_task
+      - created_at
+    GenerationRetry:
+      type: object
+      additionalProperties: false
+      properties:
+        expected_version: *id002
+        kind:
+          $ref: '#/components/schemas/DocumentKind'
+      required:
+      - expected_version
+      - kind
+      description: Retry only failed/cancelled kind from the current run, with the same immutable inputs.
+        A succeeded document is never regenerated by retry.
+    TaskAccepted:
+      type: object
+      additionalProperties: false
+      properties:
+        task_id: *id001
+      required:
+      - task_id
+    EvidenceText:
+      type: object
+      additionalProperties: false
+      properties:
+        text:
+          type: string
+          minLength: 1
+          maxLength: 4000
+          pattern: .*\S.*
+        fact_ids:
+          type: array
+          items: *id001
+          minItems: 0
+          maxItems: 200
+          uniqueItems: true
+      required:
+      - text
+      - fact_ids
+      description: AI factual claims require supporting IDs from this run. User edits may add claims but
+        must be marked manual; missing IDs are never evidence of truth.
+    ResumeSection:
+      type: object
+      additionalProperties: false
+      properties:
+        heading:
+          type: string
+          minLength: 1
+          maxLength: 120
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/EvidenceText'
+          minItems: 1
+          maxItems: 50
+      required:
+      - heading
+      - items
+    ResumeContent:
+      type: object
+      additionalProperties: false
+      properties:
+        kind:
+          type: string
+          const: resume
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        sections:
+          type: array
+          items:
+            $ref: '#/components/schemas/ResumeSection'
+          minItems: 1
+          maxItems: 20
+      required:
+      - kind
+      - title
+      - sections
+    CoverLetterContent:
+      type: object
+      additionalProperties: false
+      properties:
+        kind:
+          type: string
+          const: cover_letter
+        salutation:
+          type: string
+          minLength: 1
+          maxLength: 200
+        paragraphs:
+          type: array
+          items:
+            $ref: '#/components/schemas/EvidenceText'
+          minItems: 1
+          maxItems: 12
+        closing:
+          type: string
+          minLength: 1
+          maxLength: 200
+      required:
+      - kind
+      - salutation
+      - paragraphs
+      - closing
+    DocumentContent:
+      oneOf:
+      - $ref: '#/components/schemas/ResumeContent'
+      - $ref: '#/components/schemas/CoverLetterContent'
+    Document:
+      type: object
+      additionalProperties: false
+      properties:
+        id: *id001
+        workspace_id: *id001
+        kind:
+          $ref: '#/components/schemas/DocumentKind'
+        current_revision_id:
+          anyOf:
+          - *id001
+          - type: 'null'
+        version: *id002
+        created_at: *id003
+        updated_at: *id003
+      required:
+      - id
+      - workspace_id
+      - kind
+      - current_revision_id
+      - version
+      - created_at
+      - updated_at
+    DocumentRevision:
+      type: object
+      additionalProperties: false
+      properties:
+        id: *id001
+        document_id: *id001
+        kind:
+          $ref: '#/components/schemas/DocumentKind'
+        parent_revision_id:
+          anyOf:
+          - *id001
+          - type: 'null'
+        run_id: *id001
+        task_id:
+          anyOf:
+          - *id001
+          - type: 'null'
+        origin:
+          type: string
+          enum:
+          - ai
+          - manual
+        schema_version:
+          type: integer
+          const: 1
+        content:
+          $ref: '#/components/schemas/DocumentContent'
+        change_summary:
+          type: string
+          minLength: 0
+          maxLength: 2000
+        created_at: *id003
+      required:
+      - id
+      - document_id
+      - kind
+      - parent_revision_id
+      - run_id
+      - task_id
+      - origin
+      - schema_version
+      - content
+      - change_summary
+      - created_at
+    DocumentList:
+      type: object
+      additionalProperties: false
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Document'
+          minItems: 0
+          maxItems: 2
+      required:
+      - items
+    DocumentRevisionList:
+      type: object
+      additionalProperties: false
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/DocumentRevision'
+          minItems: 0
+          maxItems: 100
+        next_cursor:
+          anyOf:
+          - type: string
+            minLength: 1
+            maxLength: 2048
+          - type: 'null'
+      required:
+      - items
+      - next_cursor
+    DocumentSave:
+      type: object
+      additionalProperties: false
+      properties:
+        expected_version: *id002
+        base_revision_id: *id001
+        content:
+          $ref: '#/components/schemas/DocumentContent'
+      required:
+      - expected_version
+      - base_revision_id
+      - content
+      description: Save manual edit as new revision and CAS head in one transaction. Base must equal current
+        head, or an owned candidate when head is empty. Reject content kind mismatch; do not accept raw
+        HTML.
+      example:
+        expected_version: 1
+        base_revision_id: 10000000-0000-4000-8000-000000000001
+        content:
+          kind: resume
+          title: Backend Engineer
+          sections:
+          - heading: Experience
+            items:
+            - text: Built Go APIs.
+              fact_ids:
+              - 10000000-0000-4000-8000-000000000001
+    DocumentSaved:
+      type: object
+      additionalProperties: false
+      properties:
+        document:
+          $ref: '#/components/schemas/Document'
+        revision:
+          $ref: '#/components/schemas/DocumentRevision'
+      required:
+      - document
+      - revision
+    RefinementCreate:
+      type: object
+      additionalProperties: false
+      properties:
+        expected_version: *id002
+        base_revision_id: *id001
+        instruction:
+          type: string
+          minLength: 1
+          maxLength: 4000
+        tone:
+          type: string
+          enum:
+          - natural
+          - formal
+        length:
+          type: string
+          enum:
+          - concise
+          - standard
+      required:
+      - expected_version
+      - base_revision_id
+      - instruction
+      description: AI refinement creates a candidate, never auto-applies. Tone/length only valid for cover_letter;
+        handler rejects these for resumes.
+    CandidateApply:
+      type: object
+      additionalProperties: false
+      properties:
+        expected_version: *id002
+        revision_id: *id001
+      required:
+      - expected_version
+      - revision_id
+    ExportCreate:
+      type: object
+      additionalProperties: false
+      properties:
+        revision_id: *id001
+        format:
+          type: string
+          enum:
+          - pdf
+          - docx
+        template_version:
+          type: string
+          const: '1'
+      required:
+      - revision_id
+      - format
+      - template_version
+    DocumentExport:
+      type: object
+      additionalProperties: false
+      properties:
+        id: *id001
+        document_id: *id001
+        revision_id: *id001
+        format:
+          type: string
+          enum:
+          - pdf
+          - docx
+        template_version:
+          type: string
+          const: '1'
+        task_id: *id001
+        file_id:
+          anyOf:
+          - *id001
+          - type: 'null'
+        created_at: *id003
+      required:
+      - id
+      - document_id
+      - revision_id
+      - format
+      - template_version
+      - task_id
+      - file_id
+      - created_at
+    TrackWorkspace:
+      type: object
+      additionalProperties: false
+      properties:
+        expected_version: *id002
+        resume_revision_id: *id001
+        cover_letter_revision_id: *id001
+      required:
+      - expected_version
+      description: Revision IDs here refer to generated document revisions, not base resumes. Select only
+        owned revisions of this workspace. Existing association is returned; changing linked versions
+        is a future explicit operation.
+    WorkspaceTracked:
+      type: object
+      additionalProperties: false
+      properties:
+        application_id: *id001
+        workspace_version: *id002
+      required:
+      - application_id
+      - workspace_version
+  responses:
+    BadRequest:
+      description: Malformed JSON, unknown fields, invalid values or query/cursor.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/X-Request-ID'
+        Cache-Control:
+          $ref: '#/components/headers/Cache-Control'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Unauthorized:
+      description: Missing/invalid/expired application session; login errors are generic invalid_credentials.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/X-Request-ID'
+        Cache-Control:
+          $ref: '#/components/headers/Cache-Control'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Forbidden:
+      description: Origin or CSRF validation failed.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/X-Request-ID'
+        Cache-Control:
+          $ref: '#/components/headers/Cache-Control'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    NotFound:
+      description: Resource missing or owned by another user; do not disclose which.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/X-Request-ID'
+        Cache-Control:
+          $ref: '#/components/headers/Cache-Control'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Conflict:
+      description: Version conflict, normalized email already registered, or resource archived.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/X-Request-ID'
+        Cache-Control:
+          $ref: '#/components/headers/Cache-Control'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    PayloadTooLarge:
+      description: Body exceeds 128 KiB or JD exceeds 65536 UTF-8 bytes.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/X-Request-ID'
+        Cache-Control:
+          $ref: '#/components/headers/Cache-Control'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    UnsupportedMediaType:
+      description: Expected application/json for operations with JSON bodies.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/X-Request-ID'
+        Cache-Control:
+          $ref: '#/components/headers/Cache-Control'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    TooManyRequests:
+      description: Rate limit reached; Retry-After is delay in seconds.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/X-Request-ID'
+        Cache-Control:
+          $ref: '#/components/headers/Cache-Control'
+        Retry-After:
+          schema:
+            type: integer
+            minimum: 1
+          description: Seconds to wait before retrying.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Unavailable:
+      description: Database unavailable or service draining.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/X-Request-ID'
+        Cache-Control:
+          $ref: '#/components/headers/Cache-Control'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    InternalError:
+      description: Unexpected failure; no SQL, credentials or stack traces in response.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/X-Request-ID'
+        Cache-Control:
+          $ref: '#/components/headers/Cache-Control'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+  headers:
+    X-Request-ID:
+      description: Server-generated request correlation ID.
+      schema:
+        type: string
+    Cache-Control:
+      description: Private responses always use no-store.
+      schema:
+        type: string
+        const: no-store

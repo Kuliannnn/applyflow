@@ -1,0 +1,4 @@
+interface:
+  display_name: "ApplyFlow Light Glass Studio"
+  short_description: "设计英文优先的 JD、简历与求职信工作流，使用浅色混光和清晰磨砂玻璃"
+  default_prompt: "使用 $applyflow-light-glass，按已确认 V3 的英文浅色混光磨砂玻璃风格设计或实现 ApplyFlow 的 JD、简历与 Cover Letter 工作流。"

@@ -1,0 +1,7 @@
+# Renderer runtime. Install in an isolated Python environment, then set EXPORT_PYTHON.
+reportlab==4.4.9
+python-docx==1.2.0
+Pillow==12.3.0
+lxml==6.1.1
+typing_extensions==4.16.0
+charset-normalizer==3.5.1
