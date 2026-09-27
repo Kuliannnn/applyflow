@@ -10,9 +10,12 @@ import (
 	"sync/atomic"
 	"time"
 
+	"applyflow/backend/internal/adapters/aiprovider"
+	"applyflow/backend/internal/adapters/credentialvault"
 	"applyflow/backend/internal/adapters/localfiles"
 	"applyflow/backend/internal/adapters/postgres"
 	"applyflow/backend/internal/adapters/security"
+	"applyflow/backend/internal/aisettings"
 	"applyflow/backend/internal/auth"
 	"applyflow/backend/internal/files"
 	"applyflow/backend/internal/intake"
@@ -20,6 +23,7 @@ import (
 	"applyflow/backend/internal/resume"
 	"applyflow/backend/internal/studio"
 	"applyflow/backend/internal/transport/httpapi"
+	"applyflow/backend/migrations"
 	"github.com/gin-gonic/gin"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
@@ -47,7 +51,7 @@ func RunAPI(ctx context.Context, c config.Config, logger *slog.Logger) error {
 		if err := db.QueryRowContext(bounded, `SELECT COALESCE(MAX(version_id),0) FROM goose_db_version WHERE is_applied`).Scan(&version); err != nil {
 			return err
 		}
-		if version != 6 {
+		if version != migrations.LatestVersion {
 			return errors.New("database schema incompatible; apply migrations separately")
 		}
 		return nil
@@ -68,8 +72,16 @@ func RunAPI(ctx context.Context, c config.Config, logger *slog.Logger) error {
 	if err != nil {
 		return errors.New("pdfinfo unavailable; install Poppler or set PDFINFO_BIN")
 	}
+	ai := &aisettings.Service{Store: postgres.AISettingsStore{DB: db}, Probe: aiprovider.NewOpenAI()}
+	if len(c.CredentialKey) > 0 {
+		vault, e := credentialvault.New(c.CredentialKey, c.CredentialKeyVersion)
+		if e != nil {
+			return e
+		}
+		ai.Vault = vault
+	}
 	gin.SetMode(gin.ReleaseMode)
-	handler := httpapi.New(authService, studio.New(postgres.WorkspaceStore{DB: db}), httpapi.Options{Exports: postgres.FlowStore{DB: db}, Intake: &intake.Service{Store: postgres.FlowStore{DB: db}}, Generations: postgres.FlowStore{DB: db}, Documents: postgres.FlowStore{DB: db}, Tasks: postgres.FlowStore{DB: db}, Files: files.New(postgres.FileStore{DB: db}, blobs, validator), Resumes: resume.New(postgres.ResumeStore{DB: db}), Origin: c.PublicOrigin, SessionKey: c.SessionKey, CSRFKey: c.CSRFKey, SessionTTL: c.SessionTTL, Ready: ready, Logger: logger})
+	handler := httpapi.New(authService, studio.New(postgres.WorkspaceStore{DB: db}), httpapi.Options{AI: ai, Exports: postgres.FlowStore{DB: db}, Intake: &intake.Service{Store: postgres.FlowStore{DB: db}}, Generations: postgres.FlowStore{DB: db}, Documents: postgres.FlowStore{DB: db}, Tasks: postgres.FlowStore{DB: db}, Files: files.New(postgres.FileStore{DB: db}, blobs, validator), Resumes: resume.New(postgres.ResumeStore{DB: db}), Origin: c.PublicOrigin, SessionKey: c.SessionKey, CSRFKey: c.CSRFKey, SessionTTL: c.SessionTTL, Ready: ready, Logger: logger})
 	server := &http.Server{Addr: c.Address, Handler: handler, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 15 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 16 * 1024}
 	listener, err := net.Listen("tcp", c.Address)
 	if err != nil {

@@ -1,12 +1,12 @@
 openapi: 3.1.0
 info:
   title: ApplyFlow API — Foundation and Application Studio
-  version: 0.5.0
-  description: Contract-first foundation and Studio data lifecycle. 34 operations are implemented, including fixed-revision PDF/DOCX export;
+  version: 0.6.0
+  description: Contract-first foundation and Studio data lifecycle. 40 operations are implemented, including personal AI settings and fixed-revision PDF/DOCX export;
     check x-implementation on each operation for availability. All mutations enforce CSRF + Origin; private responses
     use no-store. Default JSON limit 128 KiB; resume fact confirmation and document content writes 256
     KiB. Multipart file limit 10 MiB (proxy permits framing overhead). Text also has UTF-8 byte and semantic
-    limits. Generation/refinement supports explicit mock execution only in this slice; live AI credentials,
+    limits. Generation/refinement supports explicit mock execution only in this slice; real AI generation,
     billing, full profiles, interviews and analytics remain deferred. SSRF, file validation and lifecycle
     transactions are required before implementing routes.
 servers:
@@ -28,6 +28,8 @@ tags:
 - name: Resumes
 - name: Documents
 - name: Tasks
+- name: AI settings
+  description: Encrypted personal credentials and bounded connection tests
 paths:
   /api/auth/csrf:
     get:
@@ -2714,6 +2716,324 @@ paths:
             schema:
               $ref: '#/components/schemas/StudioVersion'
       x-max-body-bytes: 131072
+  /api/ai/providers:
+    get:
+      operationId: getAIProviders
+      x-implementation: implemented
+      tags:
+      - AI settings
+      summary: Get supported AI providers and capabilities
+      responses:
+        '200':
+          description: Server-owned capability catalogue
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/X-Request-ID'
+            Cache-Control:
+              $ref: '#/components/headers/Cache-Control'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AIProviders'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /api/me/ai-config:
+    get:
+      operationId: getAIConfig
+      x-implementation: implemented
+      tags:
+      - AI settings
+      summary: Get safe personal AI settings
+      responses:
+        '200':
+          description: Safe configuration snapshot
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/X-Request-ID'
+            Cache-Control:
+              $ref: '#/components/headers/Cache-Control'
+            ETag:
+              schema:
+                type: string
+                pattern: ^"ai-[0-9]+"$
+              description: Configuration version. Historical on a completed idempotent replay; GET returns
+                current state.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AIConfig'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+      description: Empty settings start at version 0. An expired in-flight test becomes inconclusive on
+        access, without an external retry.
+    put:
+      operationId: putAIConfig
+      x-implementation: implemented
+      tags:
+      - AI settings
+      summary: Save personal AI settings
+      responses:
+        '200':
+          description: Safe configuration snapshot
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/X-Request-ID'
+            Cache-Control:
+              $ref: '#/components/headers/Cache-Control'
+            ETag:
+              schema:
+                type: string
+                pattern: ^"ai-[0-9]+"$
+              description: Configuration version. Historical on a completed idempotent replay; GET returns
+                current state.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AIConfig'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+      description: 8 KiB body. First save requires a key. A changed key or model creates an immutable revision,
+        disables it and resets testing. Limit-only edits preserve test state. Version CAS is required. No
+        arbitrary provider URLs or headers.
+      parameters:
+      - name: X-CSRF-Token
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 16
+        description: Signed CSRF token from GET /api/auth/csrf; also enforce same-origin Origin policy.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AIConfigPut'
+    patch:
+      operationId: patchAIConfig
+      x-implementation: implemented
+      tags:
+      - AI settings
+      summary: Enable or update tested personal settings
+      responses:
+        '200':
+          description: Safe configuration snapshot
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/X-Request-ID'
+            Cache-Control:
+              $ref: '#/components/headers/Cache-Control'
+            ETag:
+              schema:
+                type: string
+                pattern: ^"ai-[0-9]+"$
+              description: Configuration version. Historical on a completed idempotent replay; GET returns
+                current state.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AIConfig'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+      description: 2 KiB body. Enabling requires the current revision to have a successful test; test success
+        does not automatically enable it. Only personal mode is supported. Daily limit is stored for future
+        generation, which remains mock.
+      parameters:
+      - name: X-CSRF-Token
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 16
+        description: Signed CSRF token from GET /api/auth/csrf; also enforce same-origin Origin policy.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AIConfigPatch'
+    delete:
+      operationId: deleteAIConfig
+      x-implementation: implemented
+      tags:
+      - AI settings
+      summary: Revoke and erase personal credentials
+      responses:
+        '200':
+          description: Safe configuration snapshot
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/X-Request-ID'
+            Cache-Control:
+              $ref: '#/components/headers/Cache-Control'
+            ETag:
+              schema:
+                type: string
+                pattern: ^"ai-[0-9]+"$
+              description: Configuration version. Historical on a completed idempotent replay; GET returns
+                current state.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AIConfig'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+      description: Requires If-Match. Wipes every saved ciphertext and nonce for the owner, revokes revisions
+        and retains the monotonically increasing version. Does not revoke the key at the external provider
+        or erase backups.
+      parameters:
+      - name: X-CSRF-Token
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 16
+        description: Signed CSRF token from GET /api/auth/csrf; also enforce same-origin Origin policy.
+      - name: If-Match
+        in: header
+        required: true
+        schema:
+          type: string
+          pattern: ^"ai-(0|[1-9][0-9]*)"$
+        description: Current version as a quoted ai-N tag. Missing/malformed is 400, stale is 409.
+  /api/me/ai-config/test:
+    post:
+      operationId: testAIConfig
+      x-implementation: implemented
+      tags:
+      - AI settings
+      summary: Test a saved configuration with a fixed prompt
+      responses:
+        '200':
+          description: Safe configuration snapshot
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/X-Request-ID'
+            Cache-Control:
+              $ref: '#/components/headers/Cache-Control'
+            ETag:
+              schema:
+                type: string
+                pattern: ^"ai-[0-9]+"$
+              description: Configuration version. Historical on a completed idempotent replay; GET returns
+                current state.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AIConfig'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '202':
+          description: Same logical test is still in flight; poll GET /api/me/ai-config
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/X-Request-ID'
+            Cache-Control:
+              $ref: '#/components/headers/Cache-Control'
+            ETag:
+              schema:
+                type: string
+                pattern: ^"ai-[0-9]+"$
+              description: Configuration version. Historical on a completed idempotent replay; GET returns
+                current state.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AIConfig'
+      description: '1 KiB body. May incur provider charges. Sends no JD or resume. OpenAI Responses probe:
+        maximum 8 seconds, 32 output tokens, 64 KiB response, no redirects or automatic retry. One in-flight
+        test per owner, 3 accepted tests per rolling minute and 20 per rolling day. Durable idempotency
+        is checked before version CAS: completed replay returns the original safe snapshot (possibly historical),
+        running replay returns 202; GET polls current state. Crash deadline is 12 seconds and becomes inconclusive
+        on access. Replacement/deletion fences late results. Provider failures return 200 with safe test_status/error_code,
+        never raw bodies or 401. Receipts are retained for at least 24 hours; current implementation retains
+        them indefinitely.'
+      parameters:
+      - name: X-CSRF-Token
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 16
+        description: Signed CSRF token from GET /api/auth/csrf; also enforce same-origin Origin policy.
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Stable UUID for this logical connection test. Replays do not call the provider again;
+          different body with the same key is a conflict.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AIConfigTest'
 components:
   securitySchemes:
     sessionCookie:
@@ -4791,6 +5111,219 @@ components:
       required:
       - application_id
       - workspace_version
+    AIConfig:
+      type: object
+      additionalProperties: false
+      required:
+      - version
+      - mode
+      - enabled
+      - revision
+      - provider_id
+      - model_id
+      - has_key
+      - test_status
+      - last_tested_at
+      - error_code
+      - daily_request_limit
+      - platform_available
+      properties:
+        version:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        mode:
+          type: string
+          const: personal
+        enabled:
+          type: boolean
+        revision:
+          oneOf:
+          - type: integer
+            minimum: 1
+            maximum: 9007199254740991
+          - type: 'null'
+        provider_id:
+          oneOf:
+          - type: string
+            const: openai
+          - type: 'null'
+        model_id:
+          oneOf:
+          - type: string
+            enum:
+            - gpt-4.1-mini
+            - gpt-4.1
+          - type: 'null'
+        has_key:
+          type: boolean
+        test_status:
+          type: string
+          enum:
+          - untested
+          - testing
+          - succeeded
+          - failed
+          - inconclusive
+        last_tested_at:
+          type:
+          - string
+          - 'null'
+          format: date-time
+        error_code:
+          enum:
+          - provider_auth_failed
+          - provider_model_unavailable
+          - provider_rate_limited
+          - provider_unavailable
+          - provider_invalid_response
+          - provider_timeout
+          - credential_unavailable
+          - test_interrupted
+          - null
+        daily_request_limit:
+          type: integer
+          minimum: 1
+          maximum: 100
+        platform_available:
+          type: boolean
+          const: false
+    AIConfigPut:
+      type: object
+      additionalProperties: false
+      required:
+      - expected_version
+      - provider_id
+      - model_id
+      - daily_request_limit
+      properties:
+        expected_version:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        provider_id:
+          type: string
+          const: openai
+        model_id:
+          type: string
+          enum:
+          - gpt-4.1-mini
+          - gpt-4.1
+        api_key:
+          type: string
+          minLength: 8
+          maxLength: 4096
+          pattern: ^[\x21-\x7e]+$
+          not:
+            pattern: \*\*\*
+          writeOnly: true
+          description: Omit to retain the saved key. Null, empty and masked keys are invalid. Never returned.
+        daily_request_limit:
+          type: integer
+          minimum: 1
+          maximum: 100
+    AIConfigPatch:
+      type: object
+      additionalProperties: false
+      required:
+      - expected_version
+      properties:
+        expected_version:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        mode:
+          type: string
+          const: personal
+        enabled:
+          type: boolean
+        daily_request_limit:
+          type: integer
+          minimum: 1
+          maximum: 100
+      anyOf:
+      - required:
+        - mode
+      - required:
+        - enabled
+      - required:
+        - daily_request_limit
+    AIConfigTest:
+      type: object
+      additionalProperties: false
+      required:
+      - expected_version
+      - revision
+      properties:
+        expected_version:
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+        revision:
+          type: integer
+          minimum: 1
+          maximum: 9007199254740991
+    AIProviders:
+      type: object
+      additionalProperties: false
+      required:
+      - providers
+      - available
+      - platform_available
+      - generation_available
+      - test_notice
+      - test_limits
+      - max_daily_request_limit
+      properties:
+        providers:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required:
+            - id
+            - name
+            - models
+            properties:
+              id:
+                type: string
+                const: openai
+              name:
+                type: string
+                const: OpenAI
+              models:
+                type: array
+                items:
+                  type: string
+                  enum:
+                  - gpt-4.1-mini
+                  - gpt-4.1
+        available:
+          type: boolean
+        platform_available:
+          type: boolean
+          const: false
+        generation_available:
+          type: boolean
+          const: false
+        test_notice:
+          type: string
+        test_limits:
+          type: object
+          additionalProperties: false
+          required:
+          - per_minute
+          - per_day
+          properties:
+            per_minute:
+              type: integer
+              const: 3
+            per_day:
+              type: integer
+              const: 20
+        max_daily_request_limit:
+          type: integer
+          const: 100
   responses:
     BadRequest:
       description: Malformed JSON, unknown fields, invalid values or query/cursor.

@@ -6,6 +6,7 @@ import { SessionContext } from "../features/auth/Session";
 import { LoginPage } from "../pages/LoginPage";
 import { CreatePage } from "../pages/CreatePage";
 import { StudioPage } from "../pages/StudioPage";
+import { AISettingsPage } from "../pages/AISettingsPage";
 import { AccountPage } from "../pages/AccountPage";
 import { ErrorNotice } from "../shared/ui/common";
 import { Shell } from "./AppShell";
@@ -49,11 +50,9 @@ export function App() {
     page = <CreatePage id={parts[1]} />;
   else if (parts[0] === "studio" && validID.test(parts[1] ?? ""))
     page = <StudioPage id={parts[1]} />;
-  else if (
-    ["resumes", "profile", "applications"].includes(parts[0]) ||
-    path === "/settings/ai"
-  )
-    page = <AccountPage type={path === "/settings/ai" ? "ai" : parts[0]} />;
+  else if (path === "/settings/ai") page = <AISettingsPage />;
+  else if (["resumes", "profile", "applications"].includes(parts[0]))
+    page = <AccountPage type={parts[0]} />;
   else
     page = (
       <main className="account-page">

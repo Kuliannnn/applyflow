@@ -1,10 +1,10 @@
-# HTTP 契约 0.5.0 — Foundation + Studio
+# HTTP 契约 0.6.0 — Foundation + Studio
 
-`openapi.yaml` 是本批实现的唯一公共协议来源，版本 0.5.0。它可被 OpenAPI 工具读取，其中34 个操作已实现，覆盖文本 JD、Mock 双文档和版本编辑；其余 handler 尚未实现。实际列表见 [本地 API](../docs/development/local-api.md)。
+`openapi.yaml` 是本批实现的唯一公共协议来源，版本 0.6.0。它可被 OpenAPI 工具读取，其中 40 个操作已实现，覆盖文本 JD、Mock 双文档和版本编辑；其余 handler 尚未实现。实际列表见 [本地 API](../docs/development/local-api.md)。
 
 ## 核心决策
 
-- 50 个操作（原有 17 + Studio 33）；所有写操作明确要求 CSRF header 与同源 Origin 策略。
+- 56 个操作（原有 17 + Studio 33 + AI 设置 6）；所有写操作明确要求 CSRF header 与同源 Origin 策略。
 - 注册返回 201 + Session；登录返回 200 + Session；令牌只通过 HttpOnly Cookie；注销返回 204。登录邮箱 trim/lower，密码绝不 trim。
 - 个人资料仅 basics。新用户 profile_version=1；注册事务创建空 profile。偏好和经历暂不接受。
 - profile/skill 写操作锁 users、检查版本、修改数据并提升 profile_version 一次，全部原子提交。DELETE 的 If-Match 承载相同版本号，其他写操作放在 JSON expected_version。
@@ -64,3 +64,7 @@ SQL 负责复合 owner 关系、不可变 revisions、唯一活动任务、状�
 ## 0.5.0 固定版本导出
 
 createDocumentExport/getDocumentExport 两个操作已实现，累计 34/50。PDF/DOCX 均锁定已保存 revision，复用私有下载和共享 Worker；新 key 对失败/取消导出可重试，对 ready 文件返回 200，原 key 重放原始快照。模板 1 的字体覆盖、资源限制、依赖和运行步骤见 [导出说明](../docs/development/local-api.md#固定版本-pdfdocx-导出050)。
+
+## 0.6.0 个人 AI 配置
+
+新增六个已实现接口，累计 40/56：服务商目录、配置读取/保存/测试/启用/删除。加密主密钥、CAS 版本、幂等测试和删除边界见 [实施说明](../docs/development/ai-settings.md)。生成仍只接受 mock，个人日限额目前仅保存，不宣称真实生成或用量控制已接通。

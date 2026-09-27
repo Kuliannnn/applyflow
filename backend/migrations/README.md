@@ -52,3 +52,7 @@
 - 导出唯一 revision/format/template；显式重试可以替换失败 task_id，不能改目标版本。file_id 必须是同 owner、ready、用途 export 且 MIME 匹配。上传/模型/导出调用一律在数据库事务外。
 
 Studio 测试覆盖旧库 4→6 升级保留已有职位、6→4→6、原有全量 up/down、复合关系与不可变数据、并发 CAS、活动任务唯一、租约/取消/终态、半套事务回滚、幂等唯一与导出固定版本。所有测试使用独立随机 schema；没有新增线上运行服务。
+
+## 00007 — Personal AI settings
+
+Adds owner-bound encrypted credentials, immutable configuration revisions, versioned settings and durable connection-test receipts. API and worker readiness require `migrations.LatestVersion` (7). Credential encryption happens in the API with a separate persistent master key; SQL never receives plaintext. Old migrations remain unchanged. See [configuration and lifecycle](../../docs/development/ai-settings.md).

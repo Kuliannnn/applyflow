@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"applyflow/backend/internal/adapters/security"
+	"applyflow/backend/internal/aisettings"
 	"applyflow/backend/internal/auth"
 	"applyflow/backend/internal/document"
 	"applyflow/backend/internal/export"
@@ -21,6 +22,7 @@ import (
 )
 
 type Options struct {
+	AI                  *aisettings.Service
 	Exports             export.Store
 	Intake              *intake.Service
 	Generations         studio.GenerationStore
@@ -112,6 +114,15 @@ func New(a *auth.Service, s *studio.Service, o Options) http.Handler {
 		ex := r.Group("/api/documents", api.requireSession)
 		ex.POST("/:id/exports", api.csrfGuard, api.createExport)
 		ex.GET("/:id/exports/:export_id", api.getExport)
+	}
+	if o.AI != nil {
+		r.GET("/api/ai/providers", api.requireSession, api.aiProviders)
+		a := r.Group("/api/me/ai-config", api.requireSession)
+		a.GET("", api.getAI)
+		a.PUT("", api.csrfGuard, api.putAI)
+		a.PATCH("", api.csrfGuard, api.patchAI)
+		a.DELETE("", api.csrfGuard, api.deleteAI)
+		a.POST("/test", api.csrfGuard, api.testAI)
 	}
 	r.NoRoute(func(c *gin.Context) { problem(c, 404, "not_found") })
 	r.NoMethod(func(c *gin.Context) { problem(c, 405, "method_not_allowed") })

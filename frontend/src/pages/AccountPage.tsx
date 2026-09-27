@@ -11,9 +11,7 @@ export function AccountPage({ type }: { type: string }) {
             ? "A foundation that stays yours."
             : type === "profile"
               ? "Your personal details."
-              : type === "ai"
-                ? "Choose how you create."
-                : "Your next chapters."}
+              : "Your next chapters."}
         </h1>
       </header>
       <section className="glass account-panel">
@@ -28,19 +26,6 @@ export function AccountPage({ type }: { type: string }) {
               </p>
             )}
             <a href="/create">Back to Create ↗</a>
-          </>
-        ) : type === "ai" ? (
-          <>
-            <h2>AI connection is coming next</h2>
-            <p>
-              This release uses a local mock generator to exercise the workflow.
-              No external model receives your data.
-            </p>
-            <p>
-              Personal API keys cannot be saved or used yet. The provider
-              connection form will appear when its backend is ready.
-            </p>
-            <a href="/create">Create sample drafts ↗</a>
           </>
         ) : type === "profile" ? (
           <>

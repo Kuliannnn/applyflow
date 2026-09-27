@@ -14,9 +14,11 @@ import (
 	"testing"
 	"time"
 
+	"applyflow/backend/internal/adapters/credentialvault"
 	"applyflow/backend/internal/adapters/localfiles"
 	"applyflow/backend/internal/adapters/postgres"
 	"applyflow/backend/internal/adapters/security"
+	"applyflow/backend/internal/aisettings"
 	"applyflow/backend/internal/auth"
 	"applyflow/backend/internal/files"
 	"applyflow/backend/internal/intake"
@@ -93,6 +95,11 @@ func newHTTP(t *testing.T) (http.Handler, *sql.DB, context.Context) {
 	return h, db, ctx
 }
 func newHTTPWithStorage(t *testing.T) (http.Handler, *sql.DB, context.Context, *localfiles.Storage) {
+	return newHTTPWithAI(t, testAIProbe(func(context.Context, string, []byte) aisettings.ProbeResult {
+		return aisettings.ProbeResult{Status: "succeeded"}
+	}))
+}
+func newHTTPWithAI(t *testing.T, probe aisettings.Probe) (http.Handler, *sql.DB, context.Context, *localfiles.Storage) {
 	t.Helper()
 	db, ctx := isolatedDatabase(t)
 	p, err := goose.NewProvider(goose.DialectPostgres, db, migrations.FS)
@@ -115,7 +122,11 @@ func newHTTPWithStorage(t *testing.T) (http.Handler, *sql.DB, context.Context, *
 	if err != nil {
 		t.Fatal("install Poppler for file integration tests:", err)
 	}
-	h := httpapi.New(a, studio.New(postgres.WorkspaceStore{DB: db}), httpapi.Options{Exports: postgres.FlowStore{DB: db}, Intake: &intake.Service{Store: postgres.FlowStore{DB: db}}, Generations: postgres.FlowStore{DB: db}, Documents: postgres.FlowStore{DB: db}, Tasks: postgres.FlowStore{DB: db}, Files: files.New(postgres.FileStore{DB: db}, blobs, validator), Resumes: resume.New(postgres.ResumeStore{DB: db}), Origin: testOrigin, SessionKey: []byte(strings.Repeat("s", 32)), CSRFKey: []byte(strings.Repeat("c", 32)), SessionTTL: 30 * time.Minute, Ready: db.PingContext, Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
+	vault, err := credentialvault.New([]byte(strings.Repeat("k", 32)), 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := httpapi.New(a, studio.New(postgres.WorkspaceStore{DB: db}), httpapi.Options{AI: &aisettings.Service{Store: postgres.AISettingsStore{DB: db}, Vault: vault, Probe: probe}, Exports: postgres.FlowStore{DB: db}, Intake: &intake.Service{Store: postgres.FlowStore{DB: db}}, Generations: postgres.FlowStore{DB: db}, Documents: postgres.FlowStore{DB: db}, Tasks: postgres.FlowStore{DB: db}, Files: files.New(postgres.FileStore{DB: db}, blobs, validator), Resumes: resume.New(postgres.ResumeStore{DB: db}), Origin: testOrigin, SessionKey: []byte(strings.Repeat("s", 32)), CSRFKey: []byte(strings.Repeat("c", 32)), SessionTTL: 30 * time.Minute, Ready: db.PingContext, Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
 	return h, db, ctx, blobs
 }
 func newBrowser(h http.Handler) *browser {

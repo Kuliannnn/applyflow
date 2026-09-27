@@ -7,3 +7,6 @@ import "embed"
 //
 //go:embed *.sql
 var FS embed.FS
+
+// LatestVersion is the schema required by API and worker.
+const LatestVersion = 7

@@ -11,7 +11,8 @@
     "preview": "vite preview --host 127.0.0.1",
     "format": "prettier --write src tests vite.config.ts",
     "format:check": "prettier --check src tests vite.config.ts",
-    "test:browser": "node tests/browser-flow.mjs"
+    "test:browser": "node tests/browser-flow.mjs",
+    "test:ai-browser": "node tests/ai-settings-browser.mjs"
   },
   "dependencies": {
     "react": "19.2.7",

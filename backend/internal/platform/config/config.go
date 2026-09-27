@@ -12,6 +12,8 @@ import (
 )
 
 type Config struct {
+	CredentialKey                                   []byte
+	CredentialKeyVersion                            int
 	FileStorageDir, PDFInfoBin                      string
 	Environment, Address, DatabaseURL, PublicOrigin string
 	SessionKey, CSRFKey                             []byte
@@ -59,6 +61,19 @@ func Load(get func(string) string) (Config, error) {
 	}
 	if string(c.SessionKey) == string(c.CSRFKey) {
 		return c, errors.New("auth and CSRF keys must differ")
+	}
+	if get("CREDENTIAL_MASTER_KEY") != "" || get("CREDENTIAL_KEY_VERSION") != "" {
+		c.CredentialKey, err = base64.StdEncoding.DecodeString(strings.TrimSpace(get("CREDENTIAL_MASTER_KEY")))
+		if err != nil || len(c.CredentialKey) != 32 {
+			return c, errors.New("CREDENTIAL_MASTER_KEY must be base64 with exactly 32 random bytes")
+		}
+		c.CredentialKeyVersion, err = strconv.Atoi(get("CREDENTIAL_KEY_VERSION"))
+		if err != nil || c.CredentialKeyVersion < 1 || c.CredentialKeyVersion > 2147483647 {
+			return c, errors.New("CREDENTIAL_KEY_VERSION must be 1..2147483647")
+		}
+		if string(c.CredentialKey) == string(c.SessionKey) || string(c.CredentialKey) == string(c.CSRFKey) {
+			return c, errors.New("credential master key must differ from signing keys")
+		}
 	}
 	if v := get("AUTH_TTL"); v != "" {
 		c.SessionTTL, err = time.ParseDuration(v)

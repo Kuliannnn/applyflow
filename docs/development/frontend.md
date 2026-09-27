@@ -28,7 +28,7 @@ make run-frontend
 
 注册/登录 → 粘贴文本 JD → 上传 PDF/DOCX → 手动确认真实简历事实 → 确认公司/岗位 → Generate sample drafts → 切换 Resume / Cover letter → 编辑/保存 → PDF / Word 导出 → 私有下载。
 
-已确认的简历可以复用。创建入口显示最近 5 个工作区；工作区 URL 可直接打开，刷新从数据库恢复已保存的来源、确认信息与文档。未保存的文本只在内存，离开时有浏览器提醒，不承诺恢复未提交输入。账户菜单可进入 My resumes。Profile、AI settings 和 My applications 清楚说明当前未接通；不收集不能保存的 API Key。
+已确认的简历可以复用。创建入口显示最近 5 个工作区；工作区 URL 可直接打开，刷新从数据库恢复已保存的来源、确认信息与文档。未保存的文本只在内存，离开时有浏览器提醒，不承诺恢复未提交输入。账户菜单可进入 My resumes。Profile 和 My applications 页面仍清楚说明当前未接通。AI settings 表单已接通保存、测试、启用/停用和删除，Key 仅存在短期输入状态，保存成功即清空；Studio 仍是 Mock。详见 [AI 设置](ai-settings.md)。
 
 截图/链接解析、自动简历提取、真实 AI、自然语言改写、完整个人资料和申请跟踪仍待后端实现。截图拖放/粘贴与纯链接会提示改用文本，不能提交为假成功的截图/链接任务。
 

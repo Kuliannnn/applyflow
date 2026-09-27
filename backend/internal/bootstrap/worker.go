@@ -1,6 +1,12 @@
 package bootstrap
 
 import (
+	"context"
+	"database/sql"
+	"errors"
+	"log/slog"
+	"time"
+
 	"applyflow/backend/internal/adapters/localfiles"
 	"applyflow/backend/internal/adapters/postgres"
 	"applyflow/backend/internal/adapters/provider"
@@ -9,11 +15,7 @@ import (
 	"applyflow/backend/internal/generation"
 	"applyflow/backend/internal/platform/config"
 	"applyflow/backend/internal/task"
-	"context"
-	"database/sql"
-	"errors"
-	"log/slog"
-	"time"
+	"applyflow/backend/migrations"
 )
 
 func RunWorker(ctx context.Context, c config.Worker, logger *slog.Logger) error {
@@ -31,7 +33,7 @@ func RunWorker(ctx context.Context, c config.Worker, logger *slog.Logger) error 
 	bounded, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	var version int
-	if err = db.QueryRowContext(bounded, `SELECT COALESCE(MAX(version_id),0) FROM goose_db_version WHERE is_applied`).Scan(&version); err != nil || version != 6 {
+	if err = db.QueryRowContext(bounded, `SELECT COALESCE(MAX(version_id),0) FROM goose_db_version WHERE is_applied`).Scan(&version); err != nil || version != migrations.LatestVersion {
 		return errors.New("database unavailable or incompatible; run migrations first")
 	}
 	blobs, err := localfiles.Open(c.FileStorageDir)

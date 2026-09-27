@@ -6,9 +6,9 @@ export const copy = {
     "Turn a job description into a resume and cover letter that sound like you.",
   jd: "Job description",
   jdPlaceholder: "Paste the job description here…",
-  mock: "Preview mode · No AI provider connected",
+  mock: "Preview mode · Sample generation",
   mockDetail:
-    "This release creates clearly labelled sample drafts from your confirmed facts. No data is sent to an AI provider.",
+    "This release creates clearly labelled sample drafts from your confirmed facts. Generation does not send your documents to an AI provider.",
   unsupported:
     "Screenshot and link reading are not available yet. Paste the job description as text to continue.",
   facts:
@@ -17,6 +17,16 @@ export const copy = {
   unsaved: "You have unsaved changes. Leave this page and discard them?",
 };
 const errors: Record<string, string> = {
+  config_version_conflict:
+    "Your settings changed in another tab. Review the latest settings before saving again. Your edits are still here.",
+  config_test_required:
+    "Test the saved connection successfully before enabling it.",
+  config_changed:
+    "The saved connection changed. Review the latest settings before testing again.",
+  config_test_in_progress:
+    "A connection test is already running. Refresh its status in a moment.",
+  ai_credentials_unavailable:
+    "Personal AI connections are unavailable on this server. Contact the person who manages your installation.",
   invalid_pdf:
     "The PDF could not be read. It may be damaged or password-protected. Export a fresh PDF without a password and upload it again.",
   pdf_restricted:
@@ -50,7 +60,7 @@ export function errorText(error: unknown): string {
   if (error instanceof ApiError) {
     if (error.status === 401)
       return "Your session has ended. Sign in again. Keep this page open to preserve unsaved edits.";
-    if (error.status === 409) return errors.conflict;
+    if (error.status === 409) return errors[error.code] ?? errors.conflict;
     if (error.status === 404)
       return "This item could not be found in your account.";
     return (
@@ -65,3 +75,57 @@ export function taskError(code: string | null | undefined) {
     ? (errors[code] ?? "The task could not finish. You can retry it.")
     : "";
 }
+
+export const aiCopy = {
+  eyebrow: "YOUR AI CONNECTION",
+  title: "A little intelligence. On your terms.",
+  intro: "Choose your model. Keep control of your key.",
+  heading: "Personal connection",
+  description:
+    "Save your key, test the connection, then choose when to enable it.",
+  preview:
+    "Studio still creates sample drafts. Enabling this connection does not turn on AI document generation yet.",
+  unavailable:
+    "Personal AI connections are not available on this installation yet. Your sample-draft workflow is still available.",
+  keyHelp:
+    "Your key is encrypted on the server and is never shown again. Leave this empty to keep your saved key.",
+  newKeyHelp:
+    "Your key is encrypted on the server. It is only used when you explicitly test this connection.",
+  cost: "Testing sends a short, fixed prompt and may incur a small provider charge. Your resume and job description are not sent.",
+  limitHelp:
+    "Saved for future AI generation. This limit is not enforced yet and does not cap provider charges. Connection tests have a separate limit.",
+  saved: "Settings saved. Your key has been cleared from this form.",
+  deleted:
+    "Connection removed. Saved keys have been deleted from this account.",
+  deleteHelp:
+    "Remove all saved keys for this account? This does not revoke your key at OpenAI or stop a request already in progress.",
+  refreshed:
+    "Latest settings loaded. Your unsaved edits are still here; check them before saving.",
+  uncertain:
+    "The result could not be confirmed. Check this same test again without starting another provider call.",
+  statuses: {
+    untested: "Not tested",
+    testing: "Testing connection…",
+    succeeded: "Connection verified",
+    failed: "Test failed",
+    inconclusive: "Result uncertain",
+  },
+  failures: {
+    provider_auth_failed:
+      "The provider rejected this key. Check its permissions or replace it.",
+    provider_model_unavailable:
+      "This model is not available to your provider account. Choose another model and save.",
+    provider_rate_limited:
+      "The provider reported a rate or quota limit. Check your provider account before testing again.",
+    provider_unavailable:
+      "The provider could not be reached. You can explicitly test again later.",
+    provider_invalid_response:
+      "The provider did not return a usable response. The result is uncertain.",
+    provider_timeout:
+      "The provider did not respond in time. This attempt may still have incurred a charge.",
+    credential_unavailable:
+      "The server could not decrypt your saved key. Contact your installation administrator or replace the key.",
+    test_interrupted:
+      "The test was interrupted. Its result is unknown; another test may incur another charge.",
+  } as Record<string, string>,
+};

@@ -44,11 +44,13 @@ export async function request<T>(
     body?: unknown;
     key?: string;
     signal?: AbortSignal;
+    ifMatch?: string;
   } = {},
 ): Promise<T> {
   const method = options.method ?? "GET";
   const headers: Record<string, string> = { Accept: "application/json" };
   if (method !== "GET") headers["X-CSRF-Token"] = await token();
+  if (options.ifMatch) headers["If-Match"] = options.ifMatch;
   if (options.key) headers["Idempotency-Key"] = options.key;
   const form = options.body instanceof FormData;
   if (options.body !== undefined && !form)

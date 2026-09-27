@@ -260,7 +260,7 @@ func TestStudioUpgradePreservesFoundation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(r) != 2 {
+	if len(r) != migrations.LatestVersion-4 {
 		t.Fatalf("upgrade count=%d", len(r))
 	}
 	if n := scalar(t, ctx, db, `SELECT count(*) FROM applications WHERE id=$1 AND company='Preserve' AND version=1`, job); n != 1 {

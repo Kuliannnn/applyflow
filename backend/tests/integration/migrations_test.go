@@ -97,7 +97,7 @@ func TestMigrations(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(results) != 6 {
+	if len(results) != migrations.LatestVersion {
 		t.Fatalf("expected 6 migrations, got %d", len(results))
 	}
 	results, err = provider.Up(ctx)
