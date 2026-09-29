@@ -49,6 +49,15 @@ await page.route(
         contentType: "application/json",
         body: JSON.stringify(body),
       });
+    if (path === "/api/me/ai-usage")
+      return reply({
+        daily_request_limit: 20,
+        reserved_requests: 0,
+        attempted_requests: 0,
+        unknown_usage_requests: 0,
+        known_input_tokens: 0,
+        known_output_tokens: 0,
+      });
     if (path === "/api/auth/me")
       return reply({
         user: {

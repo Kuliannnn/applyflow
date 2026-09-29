@@ -112,10 +112,26 @@ func decodeKey(v string) ([]byte, error) {
 }
 
 // Worker needs the shared file directory and renderer, not API signing keys.
-type Worker struct{ DatabaseURL, FileStorageDir, Python string }
+type Worker struct {
+	DatabaseURL, FileStorageDir, Python string
+	CredentialKey                       []byte
+	CredentialKeyVersion                int
+}
 
 func LoadWorker(get func(string) string) (Worker, error) {
 	c := Worker{DatabaseURL: get("DATABASE_URL"), FileStorageDir: get("FILE_STORAGE_DIR"), Python: get("EXPORT_PYTHON")}
+	if get("CREDENTIAL_MASTER_KEY") != "" || get("CREDENTIAL_KEY_VERSION") != "" {
+		var err error
+		c.CredentialKey, err = base64.StdEncoding.DecodeString(strings.TrimSpace(get("CREDENTIAL_MASTER_KEY")))
+		if err != nil || len(c.CredentialKey) != 32 {
+			return c, errors.New("CREDENTIAL_MASTER_KEY must decode to 32 bytes")
+		}
+		c.CredentialKeyVersion, err = strconv.Atoi(get("CREDENTIAL_KEY_VERSION"))
+		if err != nil || c.CredentialKeyVersion < 1 || c.CredentialKeyVersion > 2147483647 {
+			return c, errors.New("invalid CREDENTIAL_KEY_VERSION")
+		}
+	}
+
 	if c.DatabaseURL == "" {
 		return c, errors.New("DATABASE_URL required")
 	}

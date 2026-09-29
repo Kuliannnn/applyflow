@@ -1,9 +1,12 @@
+import { GenerationMode } from "../features/studio/GenerationMode";
 import { copy } from "../shared/i18n/en";
 import { Arrow, ErrorNotice, Notice } from "../shared/ui/common";
 import { ResumeSetup } from "../features/resumes/ResumeSetup";
 import { useCreateWorkflow } from "../features/studio/use-create-workflow";
 export function CreatePage({ id }: { id?: string }) {
   const {
+    choice,
+    setChoice,
     text,
     setText,
     selected,
@@ -126,17 +129,22 @@ export function CreatePage({ id }: { id?: string }) {
               </div>
             </div>
           )}
+          <GenerationMode choice={choice} onChange={setChoice} />
           <ErrorNotice error={action.error} />
           <div className="composer-bottom">
             <div>
               <p className="mode-label">
                 <span className="status-dot" />
-                {copy.mock}
+                {choice.mode === "personal"
+                  ? "Personal AI · Two documents"
+                  : copy.mock}
               </p>
               <p className="small muted">
                 {review
-                  ? copy.mockDetail
-                  : "Review your job details before creating sample drafts."}
+                  ? choice.mode === "personal"
+                    ? "Your confirmed inputs will be sent when you click Generate with AI."
+                    : copy.mockDetail
+                  : "Review your job details before creating drafts."}
               </p>
             </div>
             <button
@@ -148,7 +156,9 @@ export function CreatePage({ id }: { id?: string }) {
               {action.busy
                 ? "Saving…"
                 : review
-                  ? "Generate sample drafts"
+                  ? choice.mode === "personal"
+                    ? "Generate with AI"
+                    : "Generate sample drafts"
                   : "Create my drafts"}
               <Arrow />
             </button>

@@ -13,6 +13,7 @@ import type {
   JobSource,
   JobRevision,
 } from "../../shared/api/generated";
+import type { GenerationChoice } from "./GenerationMode";
 export const workspace = (id: string) =>
   request<Workspace>("/workspaces/" + id);
 export async function loadInput(id: string) {
@@ -90,9 +91,17 @@ export async function generate(
   role: string,
   text: string,
   profile: number,
+  choice: GenerationChoice = { mode: "mock" },
 ) {
   const replay = commands.retry<GenerationAccepted>(
     `/workspaces/${w.id}/generations`,
+    (body) => {
+      const previous = body as { execution_mode: string; ai_revision?: number };
+      return (
+        previous.execution_mode === choice.mode &&
+        previous.ai_revision === choice.revision
+      );
+    },
   );
   if (replay) return replay;
   w = await workspace(w.id);
@@ -141,7 +150,8 @@ export async function generate(
     job_revision_id: w.job_revision_id,
     resume_revision_id: w.resume_revision_id,
     expected_profile_version: profile,
-    execution_mode: "mock",
+    execution_mode: choice.mode,
+    ...(choice.mode === "personal" ? { ai_revision: choice.revision } : {}),
     locale: "en",
   });
 }

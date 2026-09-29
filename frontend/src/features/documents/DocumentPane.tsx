@@ -129,7 +129,9 @@ export function DocumentPane({
         <p className="small">
           {d.base?.revision.change_summary ?? "Waiting for the saved draft."}
         </p>
-        <p className="small muted">Sample generation · No external AI call</p>
+        <p className="small muted">
+          Check all claims against your confirmed facts before sending.
+        </p>
         <div className="aside-divider" />
         <h3>Take it with you</h3>
         <p className="small">
@@ -197,8 +199,12 @@ export function DocumentPane({
             <ErrorNotice error={history.error} />
             {history.data?.items.map((r) => (
               <button key={r.id} onClick={() => setSelected(r)}>
-                {r.origin === "manual" ? "Your edit" : "Sample draft"} ·{" "}
-                {new Date(r.created_at).toLocaleString("en-AU")}
+                {r.origin === "manual"
+                  ? "Your edit"
+                  : r.change_summary.startsWith("Mock draft")
+                    ? "Sample draft"
+                    : "AI draft"}{" "}
+                · {new Date(r.created_at).toLocaleString("en-AU")}
               </button>
             ))}
             {history.data?.next_cursor && (

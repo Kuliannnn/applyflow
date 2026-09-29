@@ -75,9 +75,20 @@ type Probe interface {
 }
 type Store interface {
 	Get(context.Context, string) (Config, error)
+	GenerationUsage(context.Context, string) (GenerationUsage, error)
 	Put(context.Context, string, Put, Vault) (Config, error)
 	Patch(context.Context, string, Patch) (Config, error)
 	Delete(context.Context, string, int64) (Config, error)
 	StartTest(context.Context, string, string, Test) (Started, error)
 	FinishTest(context.Context, Claim, ProbeResult) (Config, error)
+}
+
+// GenerationUsage contains no provider response, keys, prompts or document text.
+type GenerationUsage struct {
+	DailyLimit   int   `json:"daily_request_limit"`
+	Reserved     int   `json:"reserved_requests"`
+	Attempts     int   `json:"attempted_requests"`
+	Unknown      int   `json:"unknown_usage_requests"`
+	InputTokens  int64 `json:"known_input_tokens"`
+	OutputTokens int64 `json:"known_output_tokens"`
 }

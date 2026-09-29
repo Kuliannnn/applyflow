@@ -25,7 +25,11 @@ func (api *API) generate(c *gin.Context) {
 	if !decode(c, &in) {
 		return
 	}
-	if !intake.ValidVersion(in.ExpectedVersion) || !intake.ValidVersion(in.ProfileVersion) || !security.ValidUUID(in.JobRevisionID) || !security.ValidUUID(in.ResumeRevisionID) || in.ExecutionMode != "mock" || in.Locale != "en" {
+	if !intake.ValidVersion(in.ExpectedVersion) || !intake.ValidVersion(in.ProfileVersion) || !security.ValidUUID(in.JobRevisionID) || !security.ValidUUID(in.ResumeRevisionID) || (in.ExecutionMode != "mock" && in.ExecutionMode != "personal") || in.Locale != "en" {
+		problem(c, 400, "validation_error")
+		return
+	}
+	if (in.ExecutionMode == "personal" && (in.AIRevision == nil || !intake.ValidVersion(*in.AIRevision))) || (in.ExecutionMode == "mock" && in.AIRevision != nil) {
 		problem(c, 400, "validation_error")
 		return
 	}

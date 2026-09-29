@@ -13,6 +13,7 @@ import (
 	"applyflow/backend/internal/document"
 	"applyflow/backend/internal/export"
 	"applyflow/backend/internal/files"
+	"applyflow/backend/internal/generation"
 	"applyflow/backend/internal/intake"
 	"applyflow/backend/internal/resume"
 	"applyflow/backend/internal/studio"
@@ -117,6 +118,7 @@ func New(a *auth.Service, s *studio.Service, o Options) http.Handler {
 	}
 	if o.AI != nil {
 		r.GET("/api/ai/providers", api.requireSession, api.aiProviders)
+		r.GET("/api/me/ai-usage", api.requireSession, api.aiUsage)
 		a := r.Group("/api/me/ai-config", api.requireSession)
 		a.GET("", api.getAI)
 		a.PUT("", api.csrfGuard, api.putAI)
@@ -195,7 +197,14 @@ func (api *API) csrfGuard(c *gin.Context) {
 }
 func (api *API) failure(c *gin.Context, err error) {
 	var validation files.ValidationError
+	var aiFailure generation.Failure
 	switch {
+	case errors.As(err, &aiFailure):
+		status := 409
+		if aiFailure == "ai_daily_limit" {
+			status = 429
+		}
+		problem(c, status, aiFailure.SafeCode())
 	case errors.As(err, &validation):
 		problem(c, 415, string(validation))
 	case errors.Is(err, files.ErrValidatorUnavailable):

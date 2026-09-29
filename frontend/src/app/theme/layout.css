@@ -826,3 +826,11 @@
     padding-inline: 14px;
   }
 }
+.generation-mode {
+  border-top: 1px solid var(--border);
+  padding-top: 24px;
+  margin-top: 24px;
+}
+.generation-mode select {
+  max-width: 480px;
+}

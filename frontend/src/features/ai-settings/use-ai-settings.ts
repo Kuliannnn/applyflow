@@ -171,7 +171,7 @@ export function useAISettings() {
         setConfig(value);
         setMessage(
           value.enabled
-            ? "Connection enabled. Studio generation is still in preview mode."
+            ? "Connection enabled. Choose My AI connection on Create to use it."
             : "Connection disabled.",
         );
       }

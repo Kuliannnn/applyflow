@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"applyflow/backend/internal/document"
+	"applyflow/backend/internal/generation"
 	"applyflow/backend/internal/studio"
 	"context"
 	"database/sql"
@@ -17,6 +18,9 @@ func generationTask(ctx context.Context, tx *sql.Tx, owner, workspace, run strin
 	var id string
 	err := tx.QueryRowContext(ctx, `INSERT INTO job_tasks(owner_id,workspace_id,document_id,run_id,kind,expected_document_version,input_snapshot) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING id`, owner, workspace, doc.ID, run, kind, doc.Version, raw).Scan(&id)
 	if err != nil {
+		return "", err
+	}
+	if _, err = tx.ExecContext(ctx, `INSERT INTO ai_generation_usage(task_id,owner_id,revision_id) SELECT $1,owner_id,ai_revision_id FROM generation_runs WHERE id=$2 AND owner_id=$3 AND execution_mode='personal'`, id, run, owner); err != nil {
 		return "", err
 	}
 	return id, addOutbox(ctx, tx, owner, id)
@@ -39,6 +43,19 @@ func (s FlowStore) Generate(ctx context.Context, owner, id, key string, in studi
 	op := "generate:" + id
 	if prior, ok, err := replay[studio.GenerationAccepted](ctx, tx, owner, op, key, in); err != nil || ok {
 		return prior, err
+	}
+	var aiID *string
+	prompt := "mock-v1"
+	if in.ExecutionMode == "personal" {
+		binding, e := currentAIRevision(ctx, tx, owner, in.AIRevision)
+		if e != nil {
+			return out, e
+		}
+		if e = checkAIBudget(ctx, tx, owner, 2, ""); e != nil {
+			return out, e
+		}
+		aiID = &binding
+		prompt = "personal-v1"
 	}
 	w, err := lockWorkspace(ctx, tx, owner, id, in.ExpectedVersion)
 	if err != nil {
@@ -63,7 +80,7 @@ func (s FlowStore) Generate(ctx context.Context, owner, id, key string, in studi
 		return out, studio.ErrConflict
 	}
 	// No personal profile fields are used by the mock provider; snapshot intentionally empty.
-	err = tx.QueryRowContext(ctx, `INSERT INTO generation_runs(owner_id,workspace_id,job_revision_id,resume_revision_id,profile_version,profile_snapshot,execution_mode,locale,prompt_version) VALUES($1,$2,$3,$4,$5,'{}','mock','en','mock-v1') RETURNING id`, owner, id, in.JobRevisionID, in.ResumeRevisionID, in.ProfileVersion).Scan(&out.RunID)
+	err = tx.QueryRowContext(ctx, `INSERT INTO generation_runs(owner_id,workspace_id,job_revision_id,resume_revision_id,profile_version,profile_snapshot,execution_mode,locale,prompt_version,ai_revision_id) VALUES($1,$2,$3,$4,$5,'{}',$6,'en',$7,$8) RETURNING id`, owner, id, in.JobRevisionID, in.ResumeRevisionID, in.ProfileVersion, in.ExecutionMode, prompt, aiID).Scan(&out.RunID)
 	if err != nil {
 		return out, err
 	}
@@ -107,6 +124,12 @@ func (s FlowStore) Generation(ctx context.Context, owner, id, run string) (studi
 	if err != nil {
 		return out, notFound(err)
 	}
+	if out.ExecutionMode == "personal" {
+		err = tx.QueryRowContext(ctx, `SELECT r.provider_id,r.model_id,r.revision FROM generation_runs g JOIN user_ai_config_revisions r ON r.id=g.ai_revision_id AND r.owner_id=g.owner_id WHERE g.id=$1 AND g.owner_id=$2`, run, owner).Scan(&out.ProviderID, &out.ModelID, &out.AIRevision)
+		if err != nil {
+			return out, err
+		}
+	}
 	out.ResumeTask, err = scanTask(tx.QueryRowContext(ctx, `SELECT `+taskColumns+` FROM job_tasks WHERE owner_id=$1 AND run_id=$2 AND kind='tailor_resume' ORDER BY created_at DESC,id DESC LIMIT 1`, owner, run))
 	if err != nil {
 		return out, err
@@ -130,6 +153,20 @@ func (s FlowStore) RetryGeneration(ctx context.Context, owner, id, run, key stri
 	op := "retry:" + id + ":" + run
 	if prior, ok, err := replay[studio.TaskAccepted](ctx, tx, owner, op, key, in); err != nil || ok {
 		return prior, err
+	}
+	var mode string
+	var bound *int64
+	err = tx.QueryRowContext(ctx, `SELECT g.execution_mode,r.revision FROM generation_runs g LEFT JOIN user_ai_config_revisions r ON r.id=g.ai_revision_id AND r.owner_id=g.owner_id WHERE g.id=$1 AND g.owner_id=$2 AND g.workspace_id=$3`, run, owner, id).Scan(&mode, &bound)
+	if err != nil {
+		return out, notFound(err)
+	}
+	if mode == "personal" {
+		if _, e := currentAIRevision(ctx, tx, owner, bound); e != nil {
+			return out, generation.Failure("ai_config_required")
+		}
+		if e := checkAIBudget(ctx, tx, owner, 1, ""); e != nil {
+			return out, e
+		}
 	}
 	w, err := lockWorkspace(ctx, tx, owner, id, in.ExpectedVersion)
 	if err != nil {

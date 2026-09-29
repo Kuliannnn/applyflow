@@ -72,3 +72,29 @@ describe("session and mutation safety", () => {
     await request("/files", { method: "POST", body: new FormData() });
   });
 });
+
+it("does not resend an uncertain paid request after switching to sample mode", async () => {
+  let calls = 0;
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (url: string) => {
+      if (url.endsWith("/csrf")) return json({ csrf_token: "token" });
+      calls++;
+      throw new TypeError("unknown outcome");
+    }),
+  );
+  const commands = new Commands();
+  await expect(
+    commands.send("/generations", {
+      execution_mode: "personal",
+      ai_revision: 1,
+    }),
+  ).rejects.toThrow();
+  expect(() =>
+    commands.retry(
+      "/generations",
+      (body) => (body as { execution_mode: string }).execution_mode === "mock",
+    ),
+  ).toThrow("pending_generation");
+  expect(calls).toBe(1);
+});

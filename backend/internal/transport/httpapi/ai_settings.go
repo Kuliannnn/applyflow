@@ -12,7 +12,7 @@ import (
 )
 
 func (api *API) aiProviders(c *gin.Context) {
-	respond(c, 200, gin.H{"providers": []gin.H{{"id": "openai", "name": "OpenAI", "models": []string{"gpt-4.1-mini", "gpt-4.1"}}}, "available": api.options.AI.Vault != nil, "platform_available": false, "generation_available": false, "test_notice": "Testing sends a short fixed prompt to the provider and may incur a small charge. No resume or job description is sent.", "test_limits": gin.H{"per_minute": 3, "per_day": 20}, "max_daily_request_limit": 100})
+	respond(c, 200, gin.H{"providers": []gin.H{{"id": "openai", "name": "OpenAI", "models": []string{"gpt-4.1-mini", "gpt-4.1"}}}, "available": api.options.AI.Vault != nil, "platform_available": false, "generation_available": api.options.AI.Vault != nil, "test_notice": "Testing sends a short fixed prompt to the provider and may incur a small charge. No resume or job description is sent.", "test_limits": gin.H{"per_minute": 3, "per_day": 20}, "max_daily_request_limit": 100})
 }
 func aiRespond(c *gin.Context, status int, out aisettings.Config) {
 	c.Header("ETag", `"ai-`+strconv.FormatInt(out.Version, 10)+`"`)
@@ -152,4 +152,13 @@ func (api *API) aiFailure(c *gin.Context, err error) {
 		return
 	}
 	problem(c, status, code)
+}
+
+func (api *API) aiUsage(c *gin.Context) {
+	out, err := api.options.AI.Store.GenerationUsage(c.Request.Context(), owner(c))
+	if err != nil {
+		api.failure(c, err)
+		return
+	}
+	respond(c, 200, out)
 }

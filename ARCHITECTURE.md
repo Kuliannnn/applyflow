@@ -1,6 +1,6 @@
 # ApplyFlow 工程架构
 
-> 2026-09-27 实施状态：OpenAPI 0.6.0 定义 56 个操作，其中 40 个已有 handler。已实现认证、工作区、私有 PDF/DOCX、手动简历确认、文本 JD、独立 Mock Worker、双文档版本保存/应用、任务取消、单份重试与固定版本 PDF/DOCX 导出。当前 Worker 使用 PostgreSQL outbox 直接派发；Redis/Asynq、真实 AI、自动简历解析、截图/链接、SSE 尚未实现；英文玻璃前端已接通现有 Mock 流程。迁移为 00001–00007。个人 AI 配置后端已支持加密保存、固定短提示测试、明确启用及删除；AI 设置表单已接通，真实生成尚未接入。详见 [AI 设置实施说明](docs/development/ai-settings.md)。
+> 2026-09-28 实施状态：OpenAPI 0.7.0 定义 57 个操作，其中 41 个已有 handler。已实现认证、工作区、私有 PDF/DOCX、手动简历确认、文本 JD、独立 Mock Worker、双文档版本保存/应用、任务取消、单份重试与固定版本 PDF/DOCX 导出。当前 Worker 使用 PostgreSQL outbox 直接派发；Redis/Asynq、自动简历解析、截图/链接、SSE 尚未实现；英文玻璃前端已接通现有 Mock 流程。迁移为 00001–00008。个人 AI 配置后端已支持加密保存、固定短提示测试、明确启用及删除；AI 设置表单已接通，真实生成已接通，采用固定 AI revision、请求预留和用量记录。详见 [AI 设置实施说明](docs/development/ai-settings.md)。
 
 状态：整体实施设计；第一批 OpenAPI、SQL 迁移和验证工具已落地，认证/工作区/私有文件/手动简历确认 HTTP 已实现，英文磨砂玻璃前端已接通文本 JD / Mock 文档 / 编辑导出。已落地范围见 [README](README.md)，本批协议以 [OpenAPI](api/openapi.yaml) 为准。与 [产品规划](ApplyFlow_Project_Plan.md) 配套；目录、代码边界和运行契约以本文为准。本文中的目标需通过实现和测试验收后，才可以作为生产能力声明。
 

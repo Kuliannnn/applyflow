@@ -29,7 +29,7 @@ func (w Worker) Tick(ctx context.Context) (bool, error) {
 		if ctx.Err() != nil {
 			return true, ctx.Err()
 		} // scanner recovers interrupted work
-		code := "mock_execution_failed"
+		code := "generation_failed"
 		if claim.Kind == "export_document" {
 			code = "export_failed"
 		}
@@ -46,11 +46,11 @@ func (w Worker) Tick(ctx context.Context) (bool, error) {
 }
 func (w Worker) Run(ctx context.Context) error {
 	for ctx.Err() == nil {
-		bounded, cancel := context.WithTimeout(ctx, 10*time.Second)
+		bounded, cancel := context.WithTimeout(ctx, 75*time.Second)
 		worked, err := w.Tick(bounded)
 		cancel()
 		if err != nil && ctx.Err() == nil && w.Logger != nil {
-			w.Logger.Error("worker iteration failed; durable recovery will retry")
+			w.Logger.Error("worker iteration failed; inspect task status")
 		}
 		if worked && err == nil {
 			continue

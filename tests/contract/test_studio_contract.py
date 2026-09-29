@@ -54,12 +54,15 @@ class StudioContractTests(unittest.TestCase):
         self.valid('CandidateApply',{'expected_version':2,'revision_id':ID})
         self.invalid('CandidateApply',{'revision_id':ID})
 
-    def test_generation_pins_sources_and_does_not_enable_unbuilt_live_ai(self):
+    def test_generation_pins_sources_and_requires_personal_revision(self):
         body=copy.deepcopy(self.spec['components']['schemas']['GenerationCreate']['example'])
         self.valid('GenerationCreate',body)
         for key in body:
             bad=body.copy();bad.pop(key);self.invalid('GenerationCreate',bad)
         self.invalid('GenerationCreate',{**body,'execution_mode':'personal'})
+        self.valid('GenerationCreate',{**body,'execution_mode':'personal','ai_revision':1})
+        self.invalid('GenerationCreate',{**body,'ai_revision':1})
+        self.invalid('GenerationCreate',{**body,'execution_mode':'personal','ai_revision':0})
         self.invalid('GenerationCreate',{**body,'locale':'zh'})
 
     def test_fact_confirmation_requires_evidence_and_nonempty_facts(self):

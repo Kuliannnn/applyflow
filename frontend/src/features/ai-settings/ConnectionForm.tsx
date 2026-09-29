@@ -1,3 +1,4 @@
+import { GenerationUsage } from "./GenerationUsage";
 import { useEffect, useState } from "react";
 import { aiCopy as text } from "../../shared/i18n/en";
 import { ErrorNotice } from "../../shared/ui/common";
@@ -261,6 +262,7 @@ export function ConnectionForm() {
           </div>
         </section>
       )}
+      <GenerationUsage />
       <p className="ai-preview small">{text.preview}</p>
       {c.has_key && (
         <div className="ai-remove">

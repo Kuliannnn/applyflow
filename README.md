@@ -6,16 +6,16 @@
 
 A job application tool built around **job description screenshots, text, or links → AI-tailored resume and cover letter → review and edit → export**. The interface defaults to English and follows the approved light, pastel-diffused frosted-glass design. Application tracking is a secondary workflow.
 
-The current release includes the **foundation and Application Studio API contract/database schema (0.6.0)**. The backend supports text JD → mock resume and cover-letter drafts → editing and saved revisions, with an English frosted-glass frontend connected to this workflow.
+The current release includes the **foundation and Application Studio API contract/database schema (0.7.0)**. The backend supports text JD → personal AI or sample resume and cover-letter drafts → editing and saved revisions, with an English frosted-glass frontend connected to this workflow.
 
 ## Implemented scope
 
-- [OpenAPI 3.1 contract](api/openapi.yaml): 56 operations covering authentication, profiles, job applications, private files, JD sources, base resumes, workspaces, tasks for both documents, revisions, exports, and application linking.
-- [SQL migrations](backend/migrations): 00001–00004 are retained; 00005 adds private files, resume facts, workspaces, and JD sources; 00006 adds document revisions, generation runs, tasks/outbox, idempotency, and exports; 00007 adds encrypted personal AI settings and durable test receipts.
+- [OpenAPI 3.1 contract](api/openapi.yaml): 57 operations covering authentication, profiles, job applications, private files, JD sources, base resumes, workspaces, tasks for both documents, revisions, exports, and application linking.
+- [SQL migrations](backend/migrations): 00001–00004 are retained; 00005 adds private files, resume facts, workspaces, and JD sources; 00006 adds document revisions, generation runs, tasks/outbox, idempotency, and exports; 00007 adds encrypted personal AI settings and durable test receipts; 00008 binds live generation to credentials and records request reservations/token usage.
 - [Migration command](backend/cmd/migrate/main.go): Goose + pgx, embedded SQL, bounded timeouts, and database migration locking. No production `down` command is provided.
 - Contract tests, real database constraint/concurrency tests, and CI configuration.
 
-Studio's public contract and database constraints are in place. Handlers are implemented for 40 business operations, and a separate worker processes text JDs and mock generation of both documents. Personal AI keys can now be saved, tested, enabled and deleted through the connected settings page. Real AI generation, automatic resume parsing and full profile editing remain unimplemented; interview records and analytics come after the core workflow. See the [local API guide](docs/development/local-api.md) for available operations and startup instructions; the remaining operations are contract-only. Generation requests in 0.6.0 explicitly require `execution_mode=mock`. This exercises the simulated execution pipeline without using the saved personal key for generation or presenting mock output as real AI output. See [personal AI settings](docs/development/ai-settings.md) for credential setup and API behavior.
+Studio's public contract and database constraints are in place. Handlers are implemented for 41 business operations, and a separate worker processes text JDs and mock generation of both documents. Personal AI keys can now be saved, tested, enabled and deleted through the connected settings page. Personal AI generation is connected; automatic resume parsing and full profile editing remain unimplemented; interview records and analytics come after the core workflow. See the [local API guide](docs/development/local-api.md) for available operations and startup instructions; the remaining operations are contract-only. Generation explicitly selects `execution_mode=mock` or `personal`; personal mode requires an enabled, tested `ai_revision` and sends the confirmed inputs to OpenAI. See [live generation](docs/development/live-generation.md) for setup, limits and billing semantics. See [personal AI settings](docs/development/ai-settings.md) for credential setup and API behavior.
 
 ## Run the frontend
 
@@ -78,11 +78,11 @@ These examples are for local development only. Production connections should use
 - [Application Studio architecture](docs/architecture/application-studio.md): new modules, tables, input parsing, tasks, document revisions, exports, and the complete target API design.
 - [Frontend skill](skills/applyflow-light-glass/SKILL.md): design conventions for implementation and review.
 
-Private PDF/DOCX uploads, explicit manual import, fact confirmation, and revision selection are supported; automatic extraction is not connected yet. Mock generation from text JDs, document revision saving, and fixed-revision PDF/DOCX exports are complete, with the English glass frontend connected. Real AI integration is next. Implementation follows the 0.6.0 contract, with analytics dashboards deferred. Personal AI settings are available from the account menu. Next is real generation using the saved credentials, followed by usage accounting and screenshot/link parsing.
+Private PDF/DOCX uploads, explicit manual import, fact confirmation, and revision selection are supported; automatic extraction is not connected yet. Mock generation from text JDs, document revision saving, and fixed-revision PDF/DOCX exports are complete, with the English glass frontend connected. Personal AI generation is connected. Implementation follows the 0.7.0 contract, with analytics dashboards deferred. Personal AI settings are available from the account menu. Generation request limits and known token usage are implemented; automatic parsing and screenshot/link intake are next.
 
 Related design documents: [Architecture](ARCHITECTURE.md), [API boundaries and semantics](api/README.md), and [Product plan](ApplyFlow_Project_Plan.md). Their complete target scope exceeds what is currently implemented.
 
-The mock workflow uses two separate processes: `make run-api` and `make run-worker`. The worker currently consumes PostgreSQL's durable outbox directly, without Redis. Redis/Asynq dispatch and lease renewal are planned for the real-model stage. The mock generator only preserves and formats confirmed facts, clearly labels its drafts as simulated, and does not perform real AI matching or rewriting. See the [execution and API call sequence](docs/development/local-api.md#文本-jd-到-mock-双文档).
+The mock workflow uses two separate processes: `make run-api` and `make run-worker`. The worker currently consumes PostgreSQL's durable outbox directly, without Redis. Live calls currently use bounded timeouts within fixed leases; Redis/Asynq and lease renewal remain future options. The mock generator only preserves and formats confirmed facts, clearly labels its drafts as simulated, and does not perform real AI matching or rewriting. See the [execution and API call sequence](docs/development/local-api.md#文本-jd-到-mock-双文档).
 
 ---
 
@@ -92,16 +92,16 @@ The mock workflow uses two separate processes: `make run-api` and `make run-work
 
 以 **JD 截图/文字/链接 → AI 定制简历与 Cover Letter → 审阅编辑 → 导出** 为核心的求职工具。默认英文，采用已确认的浅色混光磨砂玻璃设计。申请跟踪是辅助流程。
 
-当前交付 **基础层 + Application Studio 契约/数据库结构（0.6.0）**，已实现文本 JD → Mock 双文档草稿 → 编辑/版本保存的后端流程，英文磨砂玻璃前端已接通此流程。
+当前交付 **基础层 + Application Studio 契约/数据库结构（0.7.0）**，已实现文本 JD → 真实 AI 或 Mock 双文档草稿 → 编辑/版本保存的后端流程，英文磨砂玻璃前端已接通此流程。
 
 ## 已完成的范围
 
-- [OpenAPI 3.1 契约](api/openapi.yaml)：56 个操作，覆盖原有认证/资料/职位，以及私有文件、JD 来源、基础简历、工作区、双文档任务、版本、导出与关联申请。
-- [SQL migrations](backend/migrations)：00001–00004 保留；新增 00005（私有文件、简历事实、工作区/JD 来源）、00006（文档版本、生成批次、任务/outbox、幂等与导出）和 00007（加密个人 AI 配置与持久化测试记录）。
+- [OpenAPI 3.1 契约](api/openapi.yaml)：57 个操作，覆盖原有认证/资料/职位，以及私有文件、JD 来源、基础简历、工作区、双文档任务、版本、导出与关联申请。
+- [SQL migrations](backend/migrations)：00001–00004 保留；新增 00005（私有文件、简历事实、工作区/JD 来源）、00006（文档版本、生成批次、任务/outbox、幂等与导出）、00007（加密个人 AI 配置与持久化测试记录）和 00008（真实生成绑定、请求预留与 token 记录）。
 - [迁移命令](backend/cmd/migrate/main.go)：Goose + pgx，嵌入 SQL、有界超时、数据库迁移锁，不提供生产 down 命令。
 - 契约测试、真实数据库约束/并发测试及 CI 配置。
 
-Studio 的公开契约与表约束已落地；40 个业务操作已有 handler，独立 Worker 能处理文本 JD 和 Mock 双文档生成；个人 AI Key 的后端保存/测试/启用/删除已实现，设置表单也已接通；真实 AI 生成、自动简历解析、完整个人资料仍待实现；面试记录与统计排在核心流程之后。可调用范围和启动步骤见 [本地 API 说明](docs/development/local-api.md)；其余操作仍只有契约。0.6.0 的生成请求显式要求 execution_mode=mock，已可验证模拟执行链路，生成暂不使用已保存的个人 Key，也不伪装真实 AI。个人凭据的配置和接口见 [AI 设置说明](docs/development/ai-settings.md)。
+Studio 的公开契约与表约束已落地；41 个业务操作已有 handler，独立 Worker 能处理文本 JD 和 Mock 双文档生成；个人 AI Key 的后端保存/测试/启用/删除已实现，设置表单也已接通；真实 AI 生成已接通；自动简历解析、完整个人资料仍待实现；面试记录与统计排在核心流程之后。可调用范围和启动步骤见 [本地 API 说明](docs/development/local-api.md)；其余操作仍只有契约。0.7.0 显式选择 mock 或 personal；personal 要求已启用且测试通过的 ai_revision。配置、费用与运行边界见 [真实生成说明](docs/development/live-generation.md)。个人凭据的配置和接口见 [AI 设置说明](docs/development/ai-settings.md)。
 
 ## 运行前端
 
@@ -164,8 +164,8 @@ make migrate-status
 - [Application Studio 架构](docs/architecture/application-studio.md)：新增模块、表、输入解析、任务、文档版本、导出及完整目标 API 设计。
 - [前端 skill](skills/applyflow-light-glass/SKILL.md)：实现与审查时采用的设计约定。
 
-已支持 PDF/DOCX 私有上传、显式手动导入、资料确认及版本选择；自动提取尚未接入。文本 JD 的模拟双文档生成与版本保存也已完成；固定版本 PDF/DOCX 导出已完成，正式英文玻璃前端已接通；下一步接入真实 AI。以 0.6.0 契约约束实现，不先搭建统计后台。账户菜单中的 AI 设置表单已接通，下一步接已保存凭据的真实生成，再补用量统计和截图/链接解析。
+已支持 PDF/DOCX 私有上传、显式手动导入、资料确认及版本选择；自动提取尚未接入。文本 JD 的模拟双文档生成与版本保存也已完成；固定版本 PDF/DOCX 导出已完成，正式英文玻璃前端已接通；真实 AI 生成已接通。以 0.7.0 契约约束实现，不先搭建统计后台。账户菜单中的 AI 设置表单已接通，真实生成已执行请求限额并记录可得 token 用量，下一步补自动解析及截图/链接输入。
 
 相关设计：[架构](ARCHITECTURE.md)、[API 边界与语义](api/README.md)、[产品规划](ApplyFlow_Project_Plan.md)。设计文档的完整目标大于本批已实现范围。
 
-Mock 工作流使用两个独立进程：`make run-api` 与 `make run-worker`。Worker 当前直接消费 PostgreSQL 的持久 outbox，不需要 Redis；真实模型阶段再引入 Redis/Asynq 派发和续租。Mock 仅保留/排版已确认事实，明确标注模拟草稿，不具备真实 AI 的匹配改写能力。详见 [运行与调用顺序](docs/development/local-api.md#文本-jd-到-mock-双文档)。
+Mock 工作流使用两个独立进程：`make run-api` 与 `make run-worker`。Worker 当前直接消费 PostgreSQL 的持久 outbox，不需要 Redis；真实调用当前采用有界超时与固定租约；Redis/Asynq 和续租仍是后续选项。Mock 仅保留/排版已确认事实，明确标注模拟草稿，不具备真实 AI 的匹配改写能力。详见 [运行与调用顺序](docs/development/local-api.md#文本-jd-到-mock-双文档)。

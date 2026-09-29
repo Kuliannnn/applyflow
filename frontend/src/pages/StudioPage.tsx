@@ -49,8 +49,19 @@ export function StudioPage({ id }: { id: string }) {
           </h1>
           <p>Two documents. One next chapter.</p>
         </div>
-        <span className="mode-pill">Sample drafts</span>
+        <span className="mode-pill">
+          {run.data?.execution_mode === "personal"
+            ? `AI drafts · ${run.data.model_id}`
+            : "Sample drafts"}
+        </span>
       </header>
+      {run.data?.execution_mode === "personal" && (
+        <p className="notice">
+          AI drafts need your review. Check each claim against your confirmed
+          experience. Retrying a failed document starts one new paid call; a
+          timeout may already have incurred a charge.
+        </p>
+      )}
       <ErrorNotice error={w.error || run.error || docs.error} />
       <section className="glass studio">
         <div className="tabs" role="tablist" aria-label="Application documents">

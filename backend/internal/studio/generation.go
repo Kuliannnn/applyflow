@@ -12,6 +12,7 @@ type Generate struct {
 	ResumeRevisionID string `json:"resume_revision_id"`
 	ProfileVersion   int64  `json:"expected_profile_version"`
 	ExecutionMode    string `json:"execution_mode"`
+	AIRevision       *int64 `json:"ai_revision,omitempty"`
 	Locale           string `json:"locale"`
 }
 type GenerationAccepted struct {
@@ -29,6 +30,9 @@ type Generation struct {
 	ProfileVersion   int64         `json:"profile_version"`
 	ExecutionMode    string        `json:"execution_mode"`
 	Locale           string        `json:"locale"`
+	ProviderID       *string       `json:"provider_id"`
+	ModelID          *string       `json:"model_id"`
+	AIRevision       *int64        `json:"ai_revision"`
 	ResumeTask       task.Snapshot `json:"resume_task"`
 	CoverLetterTask  task.Snapshot `json:"cover_letter_task"`
 	CreatedAt        time.Time     `json:"created_at"`

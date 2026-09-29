@@ -56,3 +56,7 @@ Studio 测试覆盖旧库 4→6 升级保留已有职位、6→4→6、原有全
 ## 00007 — Personal AI settings
 
 Adds owner-bound encrypted credentials, immutable configuration revisions, versioned settings and durable connection-test receipts. API and worker readiness require `migrations.LatestVersion` (7). Credential encryption happens in the API with a separate persistent master key; SQL never receives plaintext. Old migrations remain unchanged. See [configuration and lifecycle](../../docs/development/ai-settings.md).
+
+## 00008 — Personal generation
+
+Binds immutable generation runs to owner-matched AI revisions and adds durable per-task request reservations/usage. API and worker require schema 8. Provider calls use an at-most-once dispatch marker per task; explicit retries create new tasks. See [live generation](../../docs/development/live-generation.md).

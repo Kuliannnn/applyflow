@@ -17,6 +17,36 @@ export const copy = {
   unsaved: "You have unsaved changes. Leave this page and discard them?",
 };
 const errors: Record<string, string> = {
+  generation_failed:
+    "The draft could not be completed. Check its status before explicitly retrying; any previous provider call may already have incurred a charge.",
+  pending_generation:
+    "A previous generation request has an uncertain outcome. Keep its original mode and AI configuration to retry the same request safely; do not start a different paid request yet.",
+  ai_config_required:
+    "This generation needs its saved, tested and enabled AI configuration. Check AI settings; if you changed the model or key, start a new generation from Job details.",
+  ai_daily_limit:
+    "Your generation request limit has been reached. Pending documents reserve calls too. Wait for the rolling 24-hour window or update your limit in AI settings.",
+  ai_input_too_large:
+    "The combined job description and confirmed facts are too long. Shorten them before generating again.",
+  provider_outcome_unknown:
+    "A provider call may already have happened. It will not be repeated automatically. An explicit retry may incur another charge.",
+  provider_invalid_document:
+    "The model returned invalid document structure or unsupported fact references. No draft was saved. You may explicitly retry.",
+  provider_incomplete:
+    "The provider stopped before completing the document. You may explicitly retry; the earlier call may have incurred a charge.",
+  provider_refused:
+    "The provider declined this request. Review your inputs before trying again.",
+  provider_auth_failed:
+    "The provider rejected the saved key. Check AI settings.",
+  provider_model_unavailable:
+    "The selected model is not available to your provider account.",
+  provider_rate_limited:
+    "The provider reported a rate or quota limit. Check your provider account before retrying.",
+  provider_timeout:
+    "The provider timed out. The call may have incurred a charge; it will not be repeated automatically.",
+  provider_unavailable:
+    "The provider could not be reached. The call outcome is uncertain; it will not be repeated automatically.",
+  credential_unavailable:
+    "The worker could not decrypt this key. Check that API and worker use the same credential master key.",
   config_version_conflict:
     "Your settings changed in another tab. Review the latest settings before saving again. Your edits are still here.",
   config_test_required:
@@ -84,7 +114,7 @@ export const aiCopy = {
   description:
     "Save your key, test the connection, then choose when to enable it.",
   preview:
-    "Studio still creates sample drafts. Enabling this connection does not turn on AI document generation yet.",
+    "Choose My AI connection on Create to generate real drafts. Sample mode stays available and never calls a provider.",
   unavailable:
     "Personal AI connections are not available on this installation yet. Your sample-draft workflow is still available.",
   keyHelp:
@@ -93,7 +123,7 @@ export const aiCopy = {
     "Your key is encrypted on the server. It is only used when you explicitly test this connection.",
   cost: "Testing sends a short, fixed prompt and may incur a small provider charge. Your resume and job description are not sent.",
   limitHelp:
-    "Saved for future AI generation. This limit is not enforced yet and does not cap provider charges. Connection tests have a separate limit.",
+    "Limits generation calls over a rolling 24 hours. Two documents reserve two calls. Failed or uncertain attempts count too. This is not a money cap; connection tests have a separate limit.",
   saved: "Settings saved. Your key has been cleared from this form.",
   deleted:
     "Connection removed. Saved keys have been deleted from this account.",

@@ -1,12 +1,12 @@
 openapi: 3.1.0
 info:
   title: ApplyFlow API — Foundation and Application Studio
-  version: 0.6.0
-  description: Contract-first foundation and Studio data lifecycle. 40 operations are implemented, including personal AI settings and fixed-revision PDF/DOCX export;
+  version: 0.7.0
+  description: Contract-first foundation and Studio data lifecycle. 41 operations are implemented, including personal AI settings and fixed-revision PDF/DOCX export;
     check x-implementation on each operation for availability. All mutations enforce CSRF + Origin; private responses
     use no-store. Default JSON limit 128 KiB; resume fact confirmation and document content writes 256
     KiB. Multipart file limit 10 MiB (proxy permits framing overhead). Text also has UTF-8 byte and semantic
-    limits. Generation/refinement supports explicit mock execution only in this slice; real AI generation,
+    limits. Generation supports explicit mock or personal execution; AI refinement,
     billing, full profiles, interviews and analytics remain deferred. SSRF, file validation and lifecycle
     transactions are required before implementing routes.
 servers:
@@ -1751,7 +1751,7 @@ paths:
       tags:
       - Workspaces
       summary: Create resume and cover letter tasks
-      description: Mock-only slice. Lock owner/workspace/documents, check confirmed selected revisions/profile
+      description: Explicit mock or personal mode. Lock owner/workspace/documents, check confirmed selected revisions/profile
         version and active task uniqueness. Atomically persist immutable run, two tasks, two outbox entries,
         workspace version and replay response. No empty live-AI placeholder. A 202 is durable acceptance,
         not successful generation.
@@ -2519,7 +2519,7 @@ paths:
       tags:
       - Tasks
       summary: Request cancellation or return terminal state
-      description: In the local mock runtime, atomically mark any nonterminal task cancelled and consume
+      description: Atomically mark any nonterminal task cancelled and consume
         pending outbox deliveries. A running calculation may finish in memory but its fenced commit is
         rejected. Return terminal tasks unchanged. No external model calls or billing exist in this slice.
       parameters:
@@ -2872,8 +2872,7 @@ paths:
         '429':
           $ref: '#/components/responses/TooManyRequests'
       description: 2 KiB body. Enabling requires the current revision to have a successful test; test success
-        does not automatically enable it. Only personal mode is supported. Daily limit is stored for future
-        generation, which remains mock.
+        does not automatically enable it. Only personal mode is supported. Daily limit enforces rolling 24-hour generation reservations and attempts. Tests have a separate budget.
       parameters:
       - name: X-CSRF-Token
         in: header
@@ -3034,6 +3033,35 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/AIConfigTest'
+  /api/me/ai-usage:
+    get:
+      operationId: getAIGenerationUsage
+      x-implementation: implemented
+      tags:
+      - AI settings
+      summary: Read own rolling 24-hour generation usage
+      responses:
+        '200':
+          description: Safe configuration snapshot
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/X-Request-ID'
+            Cache-Control:
+              $ref: '#/components/headers/Cache-Control'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AIGenerationUsage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+      description: Accepted unsent tasks reserve slots; cancellation or failure before
+        dispatch releases them. Dispatched attempts count even if cancelled or uncertain.
+        Token totals include known values only; unknown_usage_requests is not zero usage.
+        Connection probes have a separate budget and are excluded.
 components:
   securitySchemes:
     sessionCookie:
@@ -4385,16 +4413,34 @@ components:
       type: object
       additionalProperties: false
       properties:
-        expected_version: *id002
-        job_revision_id: *id001
-        resume_revision_id: *id001
-        expected_profile_version: *id002
+        expected_version:
+          type: integer
+          minimum: 1
+          maximum: 9007199254740991
+          format: int64
+        job_revision_id:
+          type: string
+          format: uuid
+        resume_revision_id:
+          type: string
+          format: uuid
+        expected_profile_version:
+          type: integer
+          minimum: 1
+          maximum: 9007199254740991
+          format: int64
         execution_mode:
           type: string
-          const: mock
+          enum:
+          - mock
+          - personal
         locale:
           type: string
           const: en
+        ai_revision:
+          type: integer
+          minimum: 1
+          maximum: 9007199254740991
       required:
       - expected_version
       - job_revision_id
@@ -4402,8 +4448,9 @@ components:
       - expected_profile_version
       - execution_mode
       - locale
-      description: This contract slice only supports explicit mock execution. Live AI requires the credential/usage
-        contract and migration before enabling it. Replay precedes source-version checks.
+      description: Explicit mock or personal generation. Personal requires the enabled/tested current ai_revision;
+        two calls are reserved atomically against a rolling 24-hour limit. Immutable run binds the saved credential/model.
+        Replay precedes version and budget checks. No silent mock fallback.
       example:
         expected_version: 3
         job_revision_id: 10000000-0000-4000-8000-000000000001
@@ -4411,6 +4458,18 @@ components:
         expected_profile_version: 1
         execution_mode: mock
         locale: en
+      allOf:
+      - if:
+          properties:
+            execution_mode:
+              const: personal
+        then:
+          required:
+          - ai_revision
+        else:
+          not:
+            required:
+            - ai_revision
     GenerationAccepted:
       type: object
       additionalProperties: false
@@ -4738,14 +4797,28 @@ components:
       type: object
       additionalProperties: false
       properties:
-        id: *id001
-        workspace_id: *id001
-        job_revision_id: *id001
-        resume_revision_id: *id001
-        profile_version: *id002
+        id:
+          type: string
+          format: uuid
+        workspace_id:
+          type: string
+          format: uuid
+        job_revision_id:
+          type: string
+          format: uuid
+        resume_revision_id:
+          type: string
+          format: uuid
+        profile_version:
+          type: integer
+          minimum: 1
+          maximum: 9007199254740991
+          format: int64
         execution_mode:
           type: string
-          const: mock
+          enum:
+          - mock
+          - personal
         locale:
           type: string
           const: en
@@ -4753,7 +4826,23 @@ components:
           $ref: '#/components/schemas/TaskSnapshot'
         cover_letter_task:
           $ref: '#/components/schemas/TaskSnapshot'
-        created_at: *id003
+        created_at:
+          type: string
+          format: date-time
+        provider_id:
+          type:
+          - string
+          - 'null'
+        model_id:
+          type:
+          - string
+          - 'null'
+        ai_revision:
+          oneOf:
+          - type: integer
+            minimum: 1
+            maximum: 9007199254740991
+          - type: 'null'
       required:
       - id
       - workspace_id
@@ -4765,6 +4854,9 @@ components:
       - resume_task
       - cover_letter_task
       - created_at
+      - provider_id
+      - model_id
+      - ai_revision
     GenerationRetry:
       type: object
       additionalProperties: false
@@ -5305,7 +5397,7 @@ components:
           const: false
         generation_available:
           type: boolean
-          const: false
+          description: API credential capability; worker must use the same configured master key.
         test_notice:
           type: string
         test_limits:
@@ -5324,6 +5416,35 @@ components:
         max_daily_request_limit:
           type: integer
           const: 100
+    AIGenerationUsage:
+      type: object
+      additionalProperties: false
+      properties:
+        daily_request_limit:
+          type: integer
+          minimum: 0
+        reserved_requests:
+          type: integer
+          minimum: 0
+        attempted_requests:
+          type: integer
+          minimum: 0
+        unknown_usage_requests:
+          type: integer
+          minimum: 0
+        known_input_tokens:
+          type: integer
+          minimum: 0
+        known_output_tokens:
+          type: integer
+          minimum: 0
+      required:
+      - daily_request_limit
+      - reserved_requests
+      - attempted_requests
+      - unknown_usage_requests
+      - known_input_tokens
+      - known_output_tokens
   responses:
     BadRequest:
       description: Malformed JSON, unknown fields, invalid values or query/cursor.

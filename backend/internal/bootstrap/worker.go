@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"time"
 
+	"applyflow/backend/internal/adapters/aiprovider"
+	"applyflow/backend/internal/adapters/credentialvault"
 	"applyflow/backend/internal/adapters/localfiles"
 	"applyflow/backend/internal/adapters/postgres"
 	"applyflow/backend/internal/adapters/provider"
@@ -46,8 +48,15 @@ func RunWorker(ctx context.Context, c config.Worker, logger *slog.Logger) error 
 		return err
 	}
 	store := postgres.FlowStore{DB: db}
-	gen := generation.Executor{Store: store, Provider: provider.Mock{}}
+	gen := generation.Executor{Store: store, Provider: provider.Mock{}, Calls: store, Live: aiprovider.NewGenerator()}
+	if len(c.CredentialKey) > 0 {
+		v, e := credentialvault.New(c.CredentialKey, c.CredentialKeyVersion)
+		if e != nil {
+			return e
+		}
+		gen.Vault = v
+	}
 	exports := export.Executor{Store: store, Renderer: renderer, Blobs: blobs}
-	logger.Info("worker started", "delivery", "postgres-outbox", "generation", "mock-v1", "export_template", "1")
+	logger.Info("worker started", "delivery", "postgres-outbox", "generation", "mock-v1/personal-v1", "export_template", "1")
 	return (task.Worker{Store: store, Executor: task.Router{"extract_jd": gen, "tailor_resume": gen, "write_cover_letter": gen, "export_document": exports}, Logger: logger}).Run(ctx)
 }

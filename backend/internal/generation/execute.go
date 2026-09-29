@@ -1,7 +1,8 @@
-// Package generation validates deterministic provider output before a fenced result commit.
+// Package generation validates provider output before a fenced result commit.
 package generation
 
 import (
+	"applyflow/backend/internal/aisettings"
 	"applyflow/backend/internal/document"
 	"applyflow/backend/internal/intake"
 	"applyflow/backend/internal/resume"
@@ -13,6 +14,7 @@ import (
 
 type Input struct {
 	Text, Role, Company string
+	ExecutionMode       string
 	Facts               []resume.Fact
 }
 type Store interface {
@@ -24,6 +26,9 @@ type Provider interface {
 	Draft(string, string, string, []resume.Fact) document.Content
 }
 type Executor struct {
+	Live     LiveProvider
+	Vault    aisettings.Vault
+	Calls    LiveStore
 	Store    Store
 	Provider Provider
 }
@@ -47,13 +52,21 @@ func (e Executor) Execute(ctx context.Context, c task.Claim) error {
 	default:
 		return studio.ErrInvalid
 	}
-	content := e.Provider.Draft(kind, in.Role, in.Company, in.Facts)
+	var content document.Content
+	if in.ExecutionMode == "personal" {
+		content, err = e.live(ctx, c, in, kind)
+		if err != nil {
+			return err
+		}
+	} else {
+		content = e.Provider.Draft(kind, in.Role, in.Company, in.Facts)
+	}
 	allowed := map[string]bool{}
 	for _, f := range in.Facts {
 		allowed[strings.ToLower(f.ID)] = true
 	}
 	if err = document.Validate(content, kind, allowed); err != nil {
-		return err
+		return Failure("provider_invalid_document")
 	}
 	return e.Store.CompleteDocument(ctx, c, content)
 }

@@ -1,6 +1,6 @@
 # ApplyFlow — approved interface design
 
-状态：2026-09-21 用户确认 V3 为正式设计方向；2026-09-23 英文玻璃前端已接通文本 JD / Mock / 编辑 / 导出，2026-09-27 个人 AI 设置表单已接通，真实生成与其他目标状态仍待实现。本文定义产品界面，[视觉参数](../../skills/applyflow-light-glass/references/visual-system.md)定义 tokens，[工作流架构](../architecture/application-studio.md)定义数据与后端边界。
+状态：2026-09-21 用户确认 V3 为正式设计方向；2026-09-23 英文玻璃前端已接通文本 JD / Mock / 编辑 / 导出，2026-09-27 个人 AI 设置表单已接通，2026-09-28 已接通真实生成模式；其他目标状态仍待实现。本文定义产品界面，[视觉参数](../../skills/applyflow-light-glass/references/visual-system.md)定义 tokens，[工作流架构](../architecture/application-studio.md)定义数据与后端边界。
 
 ## 产品中心
 
@@ -76,4 +76,4 @@ V1/V2 仅保留为历史，不作为实现依据。V3 的材质、色彩、信�
 
 ## AI settings 已实现交互
 
-`/settings/ai` 使用一个玻璃工作面：Save / Test / Enable 三步说明，服务商和模型、一次性 Key 输入以及折叠的 Usage preferences。主操作随状态变化；Key 保存成功清空，不显示已存密钥的前后缀。测试费用说明紧邻测试按钮，启用后仍明确 Studio 暂时只生成样稿。删除使用就地确认，未知测试结果只允许复查相同测试；冲突保留编辑并引导读取最新配置。
+`/settings/ai` 使用一个玻璃工作面：Save / Test / Enable 三步说明，服务商和模型、一次性 Key 输入以及折叠的 Usage preferences。主操作随状态变化；Key 保存成功清空，不显示已存密钥的前后缀。测试费用说明紧邻测试按钮，启用后引导用户在 Create 显式选择 My AI connection。删除使用就地确认，未知测试结果只允许复查相同测试；冲突保留编辑并引导读取最新配置。

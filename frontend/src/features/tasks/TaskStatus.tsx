@@ -20,7 +20,7 @@ export function TaskStatus({
         {task.status === "completed"
           ? "Draft ready"
           : task.status === "running"
-            ? "Preparing your sample draft…"
+            ? "Preparing your draft…"
             : task.status === "queued"
               ? "Waiting for the worker…"
               : task.status === "retry_wait"

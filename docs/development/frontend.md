@@ -28,7 +28,7 @@ make run-frontend
 
 注册/登录 → 粘贴文本 JD → 上传 PDF/DOCX → 手动确认真实简历事实 → 确认公司/岗位 → Generate sample drafts → 切换 Resume / Cover letter → 编辑/保存 → PDF / Word 导出 → 私有下载。
 
-已确认的简历可以复用。创建入口显示最近 5 个工作区；工作区 URL 可直接打开，刷新从数据库恢复已保存的来源、确认信息与文档。未保存的文本只在内存，离开时有浏览器提醒，不承诺恢复未提交输入。账户菜单可进入 My resumes。Profile 和 My applications 页面仍清楚说明当前未接通。AI settings 表单已接通保存、测试、启用/停用和删除，Key 仅存在短期输入状态，保存成功即清空；Studio 仍是 Mock。详见 [AI 设置](ai-settings.md)。
+已确认的简历可以复用。创建入口显示最近 5 个工作区；工作区 URL 可直接打开，刷新从数据库恢复已保存的来源、确认信息与文档。未保存的文本只在内存，离开时有浏览器提醒，不承诺恢复未提交输入。账户菜单可进入 My resumes。Profile 和 My applications 页面仍清楚说明当前未接通。AI settings 表单已接通保存、测试、启用/停用和删除，Key 仅存在短期输入状态，保存成功即清空；Studio 可显式选择样稿或真实 AI 模式。详见 [AI 设置](ai-settings.md)。
 
 截图/链接解析、自动简历提取、真实 AI、自然语言改写、完整个人资料和申请跟踪仍待后端实现。截图拖放/粘贴与纯链接会提示改用文本，不能提交为假成功的截图/链接任务。
 
@@ -68,3 +68,5 @@ BASE_RESUME=/absolute/path/to/synthetic-resume.pdf npm run test:browser
 ## 发布边界
 
 `npm --prefix frontend run build` 输出 `frontend/dist`。生产需要由同一 HTTPS Origin 托管静态文件并代理 `/api`，未知页面路径 fallback 到 index.html；静态文件服务不能暴露 FILE_STORAGE_DIR。Vite dev/preview 只用于本地开发，不是已完成的生产部署。跨浏览器、真实手机软键盘、负载和完整无障碍审计仍需上线前验收。
+
+真实生成：Create 的 Generation mode 默认为 Sample drafts，选择 My AI connection 后说明将发送的确认输入及两次调用。Studio 显示真实模型、事实审阅提示及重试可能再次计费；AI settings 展示滚动用量。见 [真实生成](live-generation.md)。

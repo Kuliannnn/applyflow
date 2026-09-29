@@ -75,8 +75,13 @@ export async function request<T>(
 export class Commands {
   private keys = new Map<string, string>();
   private uncertain = new Map<string, unknown>();
-  retry<T>(path: string): Promise<T> | undefined {
+  retry<T>(
+    path: string,
+    matches?: (body: unknown) => boolean,
+  ): Promise<T> | undefined {
     const body = this.uncertain.get(path);
+    if (body !== undefined && matches && !matches(body))
+      throw new ApiError(409, "pending_generation");
     return body === undefined ? undefined : this.send<T>(path, body);
   }
   send<T>(path: string, body: unknown): Promise<T> {

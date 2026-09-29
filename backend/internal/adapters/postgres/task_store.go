@@ -66,7 +66,7 @@ func (s FlowStore) Claim(ctx context.Context) (*task.Claim, error) {
 		return nil, err
 	}
 	var c task.Claim
-	err = tx.QueryRowContext(ctx, `UPDATE job_tasks SET status='running',stage=CASE WHEN kind='extract_jd' THEN 'extracting' WHEN kind='export_document' THEN 'exporting' ELSE 'generating' END,attempts=attempts+1,fencing_token=fencing_token+1,lease_until=clock_timestamp()+interval '30 seconds',safe_error_code=NULL WHERE id=$1 RETURNING id,owner_id,kind,workspace_id,document_id,run_id,source_id,fencing_token,expected_document_version`, id).Scan(&c.ID, &c.OwnerID, &c.Kind, &c.WorkspaceID, &c.DocumentID, &c.RunID, &c.SourceID, &c.Fence, &c.ExpectedVersion)
+	err = tx.QueryRowContext(ctx, `UPDATE job_tasks SET status='running',stage=CASE WHEN kind='extract_jd' THEN 'extracting' WHEN kind='export_document' THEN 'exporting' ELSE 'generating' END,attempts=attempts+1,fencing_token=fencing_token+1,lease_until=clock_timestamp()+interval '90 seconds',safe_error_code=NULL WHERE id=$1 RETURNING id,owner_id,kind,workspace_id,document_id,run_id,source_id,fencing_token,expected_document_version`, id).Scan(&c.ID, &c.OwnerID, &c.Kind, &c.WorkspaceID, &c.DocumentID, &c.RunID, &c.SourceID, &c.Fence, &c.ExpectedVersion)
 	if err != nil {
 		return nil, err
 	}
@@ -174,7 +174,7 @@ func (s FlowStore) LoadExecution(ctx context.Context, c task.Claim) (generation.
 	if err != nil {
 		return in, err
 	}
-	err = s.DB.QueryRowContext(ctx, `SELECT j.role_title,j.company FROM generation_runs g JOIN job_revisions j ON j.id=g.job_revision_id AND j.owner_id=g.owner_id WHERE g.owner_id=$1 AND g.id=$2 AND g.execution_mode='mock' AND g.prompt_version='mock-v1'`, c.OwnerID, *c.RunID).Scan(&in.Role, &in.Company)
+	err = s.DB.QueryRowContext(ctx, `SELECT j.role_title,j.company,j.job_description,g.execution_mode FROM generation_runs g JOIN job_revisions j ON j.id=g.job_revision_id AND j.owner_id=g.owner_id WHERE g.owner_id=$1 AND g.id=$2 AND g.prompt_version IN ('mock-v1','personal-v1')`, c.OwnerID, *c.RunID).Scan(&in.Role, &in.Company, &in.Text, &in.ExecutionMode)
 	return in, err
 }
 func (s FlowStore) CompleteExtraction(ctx context.Context, c task.Claim, text string) error {
@@ -226,7 +226,7 @@ func (s FlowStore) CompleteDocument(ctx context.Context, c task.Claim, content d
 	if err = json.Unmarshal(input, &snapshot); err != nil {
 		return err
 	}
-	_, err = tx.ExecContext(ctx, `INSERT INTO document_revisions(id,owner_id,document_id,kind,parent_revision_id,run_id,task_id,origin,content,change_summary) VALUES($1,$2,$3,$4,$5,$6,$7,'ai',$8,'Mock draft — no external AI used')`, revisionID, c.OwnerID, d.ID, d.Kind, snapshot.Base, *c.RunID, c.ID, raw)
+	_, err = tx.ExecContext(ctx, `INSERT INTO document_revisions(id,owner_id,document_id,kind,parent_revision_id,run_id,task_id,origin,content,change_summary) SELECT $1,$2,$3,$4,$5,$6,$7,'ai',$8,CASE WHEN execution_mode='personal' THEN 'AI draft — review every claim against your confirmed facts' ELSE 'Mock draft — no external AI used' END FROM generation_runs WHERE id=$6 AND owner_id=$2`, revisionID, c.OwnerID, d.ID, d.Kind, snapshot.Base, *c.RunID, c.ID, raw)
 	if err != nil {
 		return err
 	}

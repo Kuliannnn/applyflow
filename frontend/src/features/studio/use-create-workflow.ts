@@ -5,9 +5,11 @@ import type { Workspace, WorkspaceList } from "../../shared/api/generated";
 import { useResource } from "../../shared/api/use-resource";
 import { useAction, useUnsaved } from "../../shared/ui/common";
 import { generate, loadInput, saveInput } from "./api";
+import type { GenerationChoice } from "./GenerationMode";
 import { useSession } from "../auth/Session";
 export function useCreateWorkflow(id?: string) {
   const user = useSession();
+  const [choice, setChoice] = useState<GenerationChoice>({ mode: "mock" });
   const [commands] = useState(() => new Commands());
   const [w, setW] = useState<Workspace>();
   const [text, setText] = useState(""),
@@ -67,12 +69,15 @@ export function useCreateWorkflow(id?: string) {
         role,
         text,
         user.profile_version,
+        choice,
       );
       flushSync(() => setDirty(false));
       location.assign("/studio/" + saved.id);
     });
   }
   return {
+    choice,
+    setChoice,
     text,
     setText,
     selected,

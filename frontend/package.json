@@ -12,7 +12,8 @@
     "format": "prettier --write src tests vite.config.ts",
     "format:check": "prettier --check src tests vite.config.ts",
     "test:browser": "node tests/browser-flow.mjs",
-    "test:ai-browser": "node tests/ai-settings-browser.mjs"
+    "test:ai-browser": "node tests/ai-settings-browser.mjs",
+    "test:live-browser": "node tests/live-generation-browser.mjs"
   },
   "dependencies": {
     "react": "19.2.7",
