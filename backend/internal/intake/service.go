@@ -69,7 +69,7 @@ func (s Service) Create(ctx context.Context, owner, id, key string, in Create) (
 	return s.Store.CreateSource(ctx, owner, id, strings.ToLower(key), in)
 }
 func (s Service) Confirm(ctx context.Context, owner, id string, in Confirm) (Confirmed, error) {
-	if !ValidVersion(in.ExpectedVersion) || !ValidVersion(in.SourceVersion) || !security.ValidUUID(in.SourceID) || !ValidText(in.Company, 200) || !ValidText(in.RoleTitle, 200) || !ValidText(in.Description, 65536) || len(in.Description) > 65536 {
+	if !ValidVersion(in.ExpectedVersion) || !ValidVersion(in.SourceVersion) || !security.ValidUUID(in.SourceID) || (in.Company != "" && !ValidText(in.Company, 200)) || (in.RoleTitle != "" && !ValidText(in.RoleTitle, 200)) || !ValidText(in.Description, 65536) || len(in.Description) > 65536 {
 		return Confirmed{}, studio.ErrInvalid
 	}
 	in.SourceID = strings.ToLower(in.SourceID)

@@ -61,8 +61,8 @@ type Vault interface {
 	Open(owner, id string, sealed Sealed) ([]byte, error)
 }
 type Claim struct {
-	OwnerID, RevisionID, RunID, CredentialID, ModelID string
-	Sealed                                            Sealed
+	OwnerID, RevisionID, RunID, CredentialID, ProviderID, ModelID string
+	Sealed                                                        Sealed
 }
 type Started struct {
 	Config Config
@@ -71,7 +71,7 @@ type Started struct {
 }
 type ProbeResult struct{ Status, Code string }
 type Probe interface {
-	Test(context.Context, string, []byte) ProbeResult
+	Test(context.Context, string, string, []byte) ProbeResult
 }
 type Store interface {
 	Get(context.Context, string) (Config, error)

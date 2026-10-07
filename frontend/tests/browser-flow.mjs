@@ -49,28 +49,34 @@ try {
     .getByLabel("Upload base resume")
     .setInputFiles(process.env.BASE_RESUME);
   await page
-    .getByLabel("Confirmed fact", { exact: true })
+    .getByLabel("Resume text · part 1", { exact: true })
     .fill(
       "Built and maintained Go APIs and PostgreSQL services at Northstar from 2022 to 2025.",
     );
   await page
-    .getByRole("button", { name: "Confirm these facts", exact: true })
+    .getByRole("button", { name: "Confirm resume & use it", exact: true })
     .click();
-  await page
-    .getByRole("button", { name: "Create my drafts", exact: true })
-    .click();
-  await page.getByLabel("Company", { exact: true }).fill("Northstar");
-  await page.getByLabel("Role title", { exact: true }).fill("Backend Engineer");
   await page
     .getByRole("button", { name: "Generate sample drafts", exact: true })
     .click();
   await page.waitForURL("**/studio/**");
+  await page
+    .getByRole("button", { name: "Edit document", exact: true })
+    .click();
   await page
     .getByLabel("Document title", { exact: true })
     .waitFor({ timeout: 20000 });
   const title = page.getByLabel("Document title", { exact: true });
   await title.fill("Alex Morgan — Backend Engineer");
   await page.getByRole("tab", { name: "Cover letter", exact: true }).click();
+  if (
+    await page
+      .getByRole("button", { name: "Edit document", exact: true })
+      .count()
+  )
+    await page
+      .getByRole("button", { name: "Edit document", exact: true })
+      .click();
   await page
     .getByLabel("Salutation", { exact: true })
     .waitFor({ timeout: 20000 });
@@ -124,6 +130,9 @@ try {
   await page.getByRole("tab", { name: "Resume", exact: true }).click();
   const other = await context.newPage();
   await other.goto(page.url());
+  await other
+    .getByRole("button", { name: "Edit document", exact: true })
+    .click();
   await other.getByLabel("Document title", { exact: true }).waitFor();
   await page
     .getByLabel("Document title", { exact: true })

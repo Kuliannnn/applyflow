@@ -38,7 +38,7 @@ type Store interface {
 	CompleteExport(context.Context, task.Claim, Export, files.File) error
 }
 type Renderer interface {
-	Render(context.Context, string, document.Content) ([]byte, error)
+	Render(context.Context, string, string, document.Content) ([]byte, error)
 }
 type Blobs interface{ Put(string, []byte) error }
 type Executor struct {
@@ -55,7 +55,7 @@ func (e Executor) Execute(ctx context.Context, c task.Claim) error {
 	if err = document.Validate(r.Content, r.Kind, nil); err != nil {
 		return err
 	}
-	raw, err := e.Renderer.Render(ctx, x.Format, r.Content)
+	raw, err := e.Renderer.Render(ctx, x.Format, x.TemplateVersion, r.Content)
 	if err != nil {
 		return err
 	}

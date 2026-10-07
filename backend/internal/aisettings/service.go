@@ -15,9 +15,6 @@ type Service struct {
 }
 
 func ValidVersion(v int64) bool { return v >= 0 && v <= 9007199254740991 }
-func ValidModel(provider, model string) bool {
-	return provider == "openai" && (model == "gpt-4.1-mini" || model == "gpt-4.1")
-}
 func (s *Service) Put(ctx context.Context, owner string, in Put) (Config, error) {
 	if !ValidVersion(in.ExpectedVersion) || !ValidModel(in.ProviderID, in.ModelID) || in.DailyRequestLimit < 1 || in.DailyRequestLimit > 100 {
 		return Config{}, ErrInvalid
@@ -66,7 +63,7 @@ func (s *Service) Test(ctx context.Context, owner, key string, in Test) (Config,
 	result := ProbeResult{Status: "inconclusive", Code: "credential_unavailable"}
 	secret, err := s.Vault.Open(owner, claim.CredentialID, claim.Sealed)
 	if err == nil {
-		result = s.Probe.Test(call, claim.ModelID, secret)
+		result = s.Probe.Test(call, claim.ProviderID, claim.ModelID, secret)
 		clear(secret)
 	}
 	if result.Status != "succeeded" && result.Status != "failed" && result.Status != "inconclusive" {

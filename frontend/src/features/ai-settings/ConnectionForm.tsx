@@ -28,6 +28,10 @@ export function ConnectionForm() {
         )}
       </section>
     );
+  const selectedProvider = s.catalogue.providers.find(
+    (p) => p.id === s.provider,
+  );
+  const canKeepKey = c.has_key && c.provider_id === s.provider;
   const testing = c.test_status === "testing";
   const blocked = s.busy || s.needsReview || s.uncertainTest || testing;
   const editable =
@@ -40,7 +44,7 @@ export function ConnectionForm() {
     !blocked &&
     s.catalogue.available &&
     validLimit &&
-    (c.has_key || s.key.length >= 8) &&
+    (canKeepKey || s.key.length >= 8) &&
     (s.dirty || !c.has_key);
   const status = !c.has_key
     ? "No key saved"
@@ -87,8 +91,18 @@ export function ConnectionForm() {
           <div className="two-fields ai-fields">
             <div>
               <label htmlFor="ai-provider">Provider</label>
-              <select id="ai-provider" value="openai" disabled>
-                <option value="openai">OpenAI</option>
+              <select
+                id="ai-provider"
+                value={s.provider}
+                onChange={(e) =>
+                  s.changeProvider(e.target.value as typeof s.provider)
+                }
+              >
+                {s.catalogue.providers.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
               </select>
             </div>
             <div>
@@ -98,12 +112,16 @@ export function ConnectionForm() {
                 value={s.model}
                 onChange={(e) => s.setModel(e.target.value as typeof s.model)}
               >
-                {s.catalogue.providers[0]?.models.map((model) => (
+                {selectedProvider?.models.map((model) => (
                   <option key={model}>{model}</option>
                 ))}
               </select>
             </div>
           </div>
+          <p className="small">{selectedProvider?.endpoint}</p>
+          {s.provider === "aiwanwu" && (
+            <p className="notice">{text.relayNotice}</p>
+          )}
           <div className="ai-key-label">
             <label htmlFor="ai-key">
               {c.has_key ? "Replace API key" : "API key"}
@@ -122,11 +140,11 @@ export function ConnectionForm() {
               spellCheck={false}
               maxLength={4096}
               minLength={8}
-              required={!c.has_key}
+              required={!canKeepKey}
               placeholder={
-                c.has_key
+                canKeepKey
                   ? "Leave empty to keep your saved key"
-                  : "Enter your OpenAI API key"
+                  : "Enter the key for this provider"
               }
               value={s.key}
               onChange={(e) => s.setKey(e.target.value)}
@@ -142,7 +160,8 @@ export function ConnectionForm() {
             </button>
           </div>
           <p id="ai-key-help" className="small">
-            {c.has_key ? text.keyHelp : text.newKeyHelp}
+            {canKeepKey ? text.keyHelp : text.newKeyHelp}
+            {c.has_key && !canKeepKey && ` ${text.providerChange}`}
           </p>
           <details className="ai-options">
             <summary>Usage preferences</summary>

@@ -55,7 +55,7 @@ func (s FlowStore) Generate(ctx context.Context, owner, id, key string, in studi
 			return out, e
 		}
 		aiID = &binding
-		prompt = "personal-v1"
+		prompt = "personal-v2"
 	}
 	w, err := lockWorkspace(ctx, tx, owner, id, in.ExpectedVersion)
 	if err != nil {

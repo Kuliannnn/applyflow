@@ -5,6 +5,8 @@ import (
 	"errors"
 	"log/slog"
 	"time"
+
+	"applyflow/backend/internal/platform/executionbudget"
 )
 
 type Worker struct {
@@ -46,7 +48,7 @@ func (w Worker) Tick(ctx context.Context) (bool, error) {
 }
 func (w Worker) Run(ctx context.Context) error {
 	for ctx.Err() == nil {
-		bounded, cancel := context.WithTimeout(ctx, 75*time.Second)
+		bounded, cancel := context.WithTimeout(ctx, executionbudget.TaskExecution)
 		worked, err := w.Tick(bounded)
 		cancel()
 		if err != nil && ctx.Err() == nil && w.Logger != nil {

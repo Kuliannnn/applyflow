@@ -17,7 +17,7 @@ import (
 
 type testAIProbe func(context.Context, string, []byte) aisettings.ProbeResult
 
-func (f testAIProbe) Test(ctx context.Context, model string, key []byte) aisettings.ProbeResult {
+func (f testAIProbe) Test(ctx context.Context, provider, model string, key []byte) aisettings.ProbeResult {
 	return f(ctx, model, key)
 }
 func aiConfig(t *testing.T, w *httptest.ResponseRecorder) aisettings.Config {

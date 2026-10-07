@@ -161,3 +161,49 @@ func (api *API) listResumes(c *gin.Context) {
 	}
 	respond(c, 200, gin.H{"items": rows, "next_cursor": next})
 }
+
+// Source extraction is local and read-only. Confirmation remains an explicit,
+// versioned write so parsing never silently replaces a user's confirmed resume.
+func (api *API) extractResumeText(c *gin.Context) {
+	id, ok := pathID(c)
+	if !ok {
+		return
+	}
+	if !api.allow(c, "resume-extract:"+owner(c), 10, time.Minute) {
+		return
+	}
+	r, err := api.options.Resumes.Get(c.Request.Context(), owner(c), id)
+	if err != nil {
+		api.failure(c, err)
+		return
+	}
+	if api.options.ResumeText == nil || api.options.Files == nil {
+		problem(c, 503, "resume_extract_unavailable")
+		return
+	}
+	select {
+	case api.uploadSlots <- struct{}{}:
+		defer func() { <-api.uploadSlots }()
+	default:
+		problem(c, 429, "rate_limited")
+		return
+	}
+	f, data, err := api.options.Files.Download(c.Request.Context(), owner(c), r.SourceFileID)
+	if err != nil {
+		api.failure(c, err)
+		return
+	}
+	out, err := api.options.ResumeText.Extract(c.Request.Context(), f.MediaType, data)
+	if err != nil {
+		switch err {
+		case resume.ExtractionError("resume_ocr_required"):
+			problem(c, 422, "resume_ocr_required")
+		case resume.ExtractionError("resume_extract_too_large"):
+			problem(c, 422, "resume_extract_too_large")
+		default:
+			problem(c, 422, "resume_extract_failed")
+		}
+		return
+	}
+	respond(c, 200, out)
+}

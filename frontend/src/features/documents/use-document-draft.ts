@@ -5,7 +5,7 @@ import type {
   DocumentRevision,
   DocumentSaved,
 } from "../../shared/api/generated";
-import { post, request } from "../../shared/api/client";
+import { ApiError, post, request } from "../../shared/api/client";
 export function useDocumentDraft(document: Document) {
   const [base, setBase] = useState<{
     document: Document;
@@ -15,9 +15,20 @@ export function useDocumentDraft(document: Document) {
   const [error, setError] = useState<unknown>();
   const [remote, setRemote] = useState<DocumentRevision>();
   const [loading, setLoading] = useState(true);
+  const dirty =
+    !!base && JSON.stringify(draft) !== JSON.stringify(base.revision.content);
   useEffect(() => {
-    if (base || !document.current_revision_id) {
+    if (
+      (base &&
+        (base.revision.id === document.current_revision_id ||
+          base.document.version >= document.version)) ||
+      !document.current_revision_id
+    ) {
       setLoading(false);
+      return;
+    }
+    if (dirty) {
+      setError(new ApiError(409, "version_conflict"));
       return;
     }
     let live = true;
@@ -42,9 +53,7 @@ export function useDocumentDraft(document: Document) {
     return () => {
       live = false;
     };
-  }, [document.id, document.current_revision_id, base]);
-  const dirty =
-    !!base && JSON.stringify(draft) !== JSON.stringify(base.revision.content);
+  }, [document.id, document.current_revision_id, base, dirty]);
   async function save() {
     if (!base || !draft) throw new Error("No document");
     if (!dirty) return base.revision;

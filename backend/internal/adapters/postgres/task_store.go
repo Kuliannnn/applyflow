@@ -4,6 +4,7 @@ import (
 	"applyflow/backend/internal/adapters/security"
 	"applyflow/backend/internal/document"
 	"applyflow/backend/internal/generation"
+	"applyflow/backend/internal/platform/executionbudget"
 	"applyflow/backend/internal/studio"
 	"applyflow/backend/internal/task"
 	"context"
@@ -66,7 +67,7 @@ func (s FlowStore) Claim(ctx context.Context) (*task.Claim, error) {
 		return nil, err
 	}
 	var c task.Claim
-	err = tx.QueryRowContext(ctx, `UPDATE job_tasks SET status='running',stage=CASE WHEN kind='extract_jd' THEN 'extracting' WHEN kind='export_document' THEN 'exporting' ELSE 'generating' END,attempts=attempts+1,fencing_token=fencing_token+1,lease_until=clock_timestamp()+interval '90 seconds',safe_error_code=NULL WHERE id=$1 RETURNING id,owner_id,kind,workspace_id,document_id,run_id,source_id,fencing_token,expected_document_version`, id).Scan(&c.ID, &c.OwnerID, &c.Kind, &c.WorkspaceID, &c.DocumentID, &c.RunID, &c.SourceID, &c.Fence, &c.ExpectedVersion)
+	err = tx.QueryRowContext(ctx, `UPDATE job_tasks SET status='running',stage=CASE WHEN kind='extract_jd' THEN 'extracting' WHEN kind='export_document' THEN 'exporting' ELSE 'generating' END,attempts=attempts+1,fencing_token=fencing_token+1,lease_until=clock_timestamp()+make_interval(secs => $2),safe_error_code=NULL WHERE id=$1 RETURNING id,owner_id,kind,workspace_id,document_id,run_id,source_id,fencing_token,expected_document_version`, id, executionbudget.TaskLease.Seconds()).Scan(&c.ID, &c.OwnerID, &c.Kind, &c.WorkspaceID, &c.DocumentID, &c.RunID, &c.SourceID, &c.Fence, &c.ExpectedVersion)
 	if err != nil {
 		return nil, err
 	}
@@ -174,7 +175,7 @@ func (s FlowStore) LoadExecution(ctx context.Context, c task.Claim) (generation.
 	if err != nil {
 		return in, err
 	}
-	err = s.DB.QueryRowContext(ctx, `SELECT j.role_title,j.company,j.job_description,g.execution_mode FROM generation_runs g JOIN job_revisions j ON j.id=g.job_revision_id AND j.owner_id=g.owner_id WHERE g.owner_id=$1 AND g.id=$2 AND g.prompt_version IN ('mock-v1','personal-v1')`, c.OwnerID, *c.RunID).Scan(&in.Role, &in.Company, &in.Text, &in.ExecutionMode)
+	err = s.DB.QueryRowContext(ctx, `SELECT j.role_title,j.company,j.job_description,g.execution_mode,g.prompt_version FROM generation_runs g JOIN job_revisions j ON j.id=g.job_revision_id AND j.owner_id=g.owner_id WHERE g.owner_id=$1 AND g.id=$2 AND g.prompt_version IN ('mock-v1','personal-v1','personal-v2')`, c.OwnerID, *c.RunID).Scan(&in.Role, &in.Company, &in.Text, &in.ExecutionMode, &in.PromptVersion)
 	return in, err
 }
 func (s FlowStore) CompleteExtraction(ctx context.Context, c task.Claim, text string) error {
@@ -230,7 +231,8 @@ func (s FlowStore) CompleteDocument(ctx context.Context, c task.Claim, content d
 	if err != nil {
 		return err
 	}
-	if d.CurrentRevisionID == nil && d.Version == *c.ExpectedVersion && w.CurrentRunID != nil && *w.CurrentRunID == *c.RunID {
+	sameBase := (d.CurrentRevisionID == nil && snapshot.Base == nil) || (d.CurrentRevisionID != nil && snapshot.Base != nil && *d.CurrentRevisionID == *snapshot.Base)
+	if sameBase && d.Version == *c.ExpectedVersion && w.CurrentRunID != nil && *w.CurrentRunID == *c.RunID {
 		if _, err = tx.ExecContext(ctx, `UPDATE documents SET current_revision_id=$3 WHERE owner_id=$1 AND id=$2 AND version=$4`, c.OwnerID, d.ID, revisionID, *c.ExpectedVersion); err != nil {
 			return err
 		}

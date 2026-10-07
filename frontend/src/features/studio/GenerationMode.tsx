@@ -41,10 +41,13 @@ export function GenerationMode({
       </select>
       {choice.mode === "personal" ? (
         <p className="small">
-          Generate sends this confirmed job description and all selected resume
-          facts to OpenAI ({ai?.model_id}) for two separate paid calls. Files
-          and unrelated profile fields are not sent. Include only facts you want
-          to share. Review every generated claim before using it.
+          Generate reads the full text of your saved original resume and sends
+          it, your confirmed additions, and this job description to{" "}
+          {providers.data?.providers.find((p) => p.id === ai?.provider_id)
+            ?.name ?? ai?.provider_id}{" "}
+          ({ai?.model_id}) for two separate paid calls. Files and unrelated
+          profile fields are not sent. Include only facts you want to share.
+          Review every generated claim before using it.
         </p>
       ) : (
         <p className="small">

@@ -22,7 +22,11 @@ func (Mock) Draft(kind, role, company string, facts []resume.Fact) document.Cont
 		return c
 	}
 	salutation, closing := "Dear Hiring Team,", "Sincerely,"
-	paragraphs := []document.EvidenceText{{Text: "Mock draft for the " + role + " role at " + company + ". Review and edit before use.", FactIDs: []string{}}}
+	intro := "Mock draft for this opportunity. Review and edit before use."
+	if role != "" && company != "" {
+		intro = "Mock draft for the " + role + " role at " + company + ". Review and edit before use."
+	}
+	paragraphs := []document.EvidenceText{{Text: intro, FactIDs: []string{}}}
 	for i, f := range facts {
 		if i == 10 {
 			break

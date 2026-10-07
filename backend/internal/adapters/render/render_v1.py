@@ -1,4 +1,4 @@
-"""Template 2: formal, single-column A4 application documents. No HTML, URLs, or remote assets."""
+"""Template 1: plain, text-first A4 exports. No HTML, URLs, or remote assets."""
 import io
 import json
 import os
@@ -15,7 +15,7 @@ from reportlab.lib.units import mm
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfgen.canvas import Canvas
-from reportlab.platypus import Paragraph, SimpleDocTemplate, HRFlowable
+from reportlab.platypus import Paragraph, SimpleDocTemplate
 from docx import Document
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
@@ -39,35 +39,20 @@ def blocks(content):
     if content["kind"] == "resume":
         yield "title", content["title"]
         for section in content["sections"]:
-            heading = section["heading"]
-            category = heading.lower().strip()
-            contact = any(word in category for word in ("contact", "personal details"))
-            narrative = contact or any(word in category for word in ("summary", "profile", "objective", "skill", "education", "certification", "language"))
-            if not contact:
-                yield "heading", heading
+            yield "heading", section["heading"]
             for item in section["items"]:
-                text = item["text"]
-                lines = text.splitlines()
-                # Only explicit multiline entries supply an entry heading. Never
-                # guess employer/date fields or change the candidate's wording.
-                if not narrative and len(lines) > 1 and len(lines[0]) <= 160:
-                    yield "entry", lines[0]
-                    for line in lines[1:]:
-                        if line.strip():
-                            yield "item", line
-                else:
-                    yield "contact" if contact else "body" if narrative else "item", text
+                yield "item", item["text"]
     else:
-        yield "salutation", content["salutation"]
+        yield "body", content["salutation"]
         for paragraph in content["paragraphs"]:
-            yield "letter", paragraph["text"]
+            yield "body", paragraph["text"]
         yield "closing", content["closing"]
 
 
 def check_text(items):
     # Fail explicitly rather than emitting black boxes or substituting unsupported names.
     for style, text in items:
-        face = pdfmetrics.getFont("ExportBold" if style in ("title", "heading", "entry") else "ExportRegular").face
+        face = pdfmetrics.getFont("ExportBold" if style in ("title", "heading") else "ExportRegular").face
         for char in text:
             if char in "\n\r\t":
                 continue
@@ -84,56 +69,36 @@ class BoundedCanvas(Canvas):
 
 def pdf_bytes(items):
     output = io.BytesIO()
-    letter = bool(items and items[0][0] == "salutation")
-    ink = colors.HexColor("#24272B")
-    body = ParagraphStyle("Body", fontName="ExportRegular", fontSize=10.5, leading=14.5,
-                          textColor=ink, alignment=TA_LEFT, spaceAfter=6,
-                          allowWidows=0, allowOrphans=0, splitLongWords=1)
+    body = ParagraphStyle("Body", fontName="ExportRegular", fontSize=10.5, leading=15,
+                          textColor=colors.HexColor("#202020"), alignment=TA_LEFT,
+                          spaceAfter=8, allowWidows=0, allowOrphans=0, splitLongWords=1)
     styles = {
         "body": body,
-        "contact": ParagraphStyle("Contact", parent=body, fontSize=9.5, leading=13,
-                                  textColor=colors.HexColor("#50555B"), spaceAfter=8),
-        "salutation": ParagraphStyle("Salutation", parent=body, leading=16, spaceAfter=16, keepWithNext=1),
-        "letter": ParagraphStyle("Letter", parent=body, leading=16, spaceAfter=14),
-        "closing": ParagraphStyle("Closing", parent=body, leading=16, spaceBefore=8),
-        "item": ParagraphStyle("Item", parent=body, leftIndent=11, bulletIndent=0, spaceAfter=5),
-        "entry": ParagraphStyle("Entry", parent=body, fontName="ExportBold", spaceBefore=5,
-                                spaceAfter=4, keepWithNext=1),
-        "title": ParagraphStyle("Title", parent=body, fontName="ExportBold", fontSize=23,
-                                leading=28, spaceAfter=9, keepWithNext=1),
-        "heading": ParagraphStyle("Heading", parent=body, fontName="ExportBold", fontSize=10,
-                                  leading=14, spaceBefore=12, spaceAfter=4, keepWithNext=1),
+        "closing": ParagraphStyle("Closing", parent=body, spaceBefore=10),
+        "item": ParagraphStyle("Item", parent=body, leftIndent=10, firstLineIndent=-10, spaceAfter=7),
+        "title": ParagraphStyle("Title", parent=body, fontName="ExportBold", fontSize=20,
+                                leading=25, spaceAfter=18, keepWithNext=1),
+        "heading": ParagraphStyle("Heading", parent=body, fontName="ExportBold", fontSize=12,
+                                  leading=17, spaceBefore=12, spaceAfter=6, keepWithNext=1),
     }
     story = []
-    for style, raw in items:
-        text = raw.expandtabs(4).replace("\r\n", "\n").replace("\r", "\n")
-        # Strip only an existing list marker so we never print double bullets.
-        if style == "item" and text.startswith(("• ", "- ", "* ")):
-            text = text[2:]
-        if style == "heading":
-            text = text.upper()
-        text = escape(text).replace("\n", "<br/>")
-        story.append(Paragraph(text, styles[style], bulletText="•" if style == "item" else None))
-        if style == "heading":
-            rule = HRFlowable(width="100%", thickness=0.45, color=colors.HexColor("#B8BDC2"), spaceAfter=7)
-            rule.keepWithNext = True
-            story.append(rule)
+    for style, text in items:
+        text = escape(text.expandtabs(4)).replace("\r\n", "\n").replace("\r", "\n").replace("\n", "<br/>")
+        if style == "item":
+            text = "&#8226; " + text
+        story.append(Paragraph(text, styles[style]))
 
     def footer(canvas, _document):
-        # A business letter needs no number on its first page.
-        if letter and canvas.getPageNumber() == 1:
-            return
         canvas.saveState()
         canvas.setFont("ExportRegular", 8)
-        canvas.setFillColor(colors.HexColor("#767B80"))
-        canvas.drawRightString(A4[0] - 20 * mm, 11 * mm, str(canvas.getPageNumber()))
+        canvas.setFillColor(colors.HexColor("#666666"))
+        canvas.drawRightString(A4[0] - 20 * mm, 12 * mm, str(canvas.getPageNumber()))
         canvas.restoreState()
 
-    pdf = SimpleDocTemplate(output, pagesize=A4, leftMargin=(24 if letter else 20) * mm,
-                            rightMargin=(24 if letter else 20) * mm,
-                            topMargin=(28 if letter else 18) * mm, bottomMargin=19 * mm,
-                            title="", author="", subject="", creator="ApplyFlow template 2",
-                            pageCompression=1, invariant=1)
+    pdf = SimpleDocTemplate(output, pagesize=A4, leftMargin=20 * mm, rightMargin=20 * mm,
+                            topMargin=20 * mm, bottomMargin=20 * mm, title="", author="",
+                            subject="", creator="ApplyFlow template 1", pageCompression=1,
+                            invariant=1)
     pdf.build(story, onFirstPage=footer, onLaterPages=footer, canvasmaker=BoundedCanvas)
     return output.getvalue()
 
@@ -156,7 +121,7 @@ def docx_bytes(items):
         style.paragraph_format.line_spacing = Pt(15)
         style.paragraph_format.space_after = Pt(8)
         style.paragraph_format.widow_control = True
-    for name, size, before, after in [("Title", 23, 0, 9), ("Heading 1", 10, 12, 7)]:
+    for name, size, before, after in [("Title", 20, 0, 18), ("Heading 1", 12, 12, 6)]:
         style = doc.styles[name]
         style.font.bold = True
         style.font.size = Pt(size)
@@ -168,14 +133,6 @@ def docx_bytes(items):
         style = {"title": "Title", "heading": "Heading 1", "item": "List Bullet"}.get(kind, "Normal")
         p = doc.add_paragraph(style=style)
         p.add_run(text.expandtabs(4))  # python-docx escapes XML; text never becomes a hyperlink.
-        if kind == "entry":
-            p.runs[0].bold = True
-            p.paragraph_format.keep_with_next = True
-        if kind == "contact":
-            p.runs[0].font.size = Pt(9.5)
-        if kind in ("letter", "salutation", "closing"):
-            p.paragraph_format.line_spacing = Pt(16)
-            p.paragraph_format.space_after = Pt(14)
         if kind == "closing":
             p.paragraph_format.space_before = Pt(10)
     footer = sec.footer.paragraphs[0]

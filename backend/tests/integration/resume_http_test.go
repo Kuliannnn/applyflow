@@ -235,3 +235,36 @@ func TestHTTPResumeConcurrentWrites(t *testing.T) {
 		t.Fatal("conflict left an orphan revision")
 	}
 }
+
+func TestExtractResumeSourceBeforeConfirmation(t *testing.T) {
+	h, _, _ := newHTTP(t)
+	a, b := newBrowser(h), newBrowser(h)
+	a.register(t, "source-a@example.test")
+	b.register(t, "source-b@example.test")
+	text := "Alex Example - Bachelor of Computing 2024. Built Go APIs, reduced batch processing by 20 percent."
+	raw := testfixture.DOCX(map[string]string{"word/document.xml": `<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>` + text + `</w:t></w:r></w:p></w:body></w:document>`})
+	uploaded := a.upload(t, "resume.docx", raw)
+	requireStatus(t, uploaded, 201)
+	file := decodeBody[files.File](t, uploaded)
+	imported := a.request("POST", "/api/resumes", importBody(file.ID), map[string]string{"Idempotency-Key": security.UUID()})
+	requireStatus(t, imported, 201)
+	var body struct {
+		Resume resume.Resume `json:"resume"`
+	}
+	_ = json.Unmarshal(imported.Body.Bytes(), &body)
+	path := "/api/resumes/" + body.Resume.ID + "/source-text"
+	requireStatus(t, b.request("POST", path, "{}", nil), 404)
+	requireStatus(t, a.request("POST", path, "{}", map[string]string{"Origin": "https://elsewhere.invalid"}), 403)
+	result := a.request("POST", path, "{}", nil)
+	requireStatus(t, result, 200)
+	extracted := decodeBody[resume.Extraction](t, result)
+	if len(extracted.Facts) != 1 || extracted.Facts[0].Text != text {
+		t.Fatal("full source not available to confirmation")
+	}
+	current := decodeBody[resume.Resume](t, a.request("GET", "/api/resumes/"+body.Resume.ID, "", nil))
+	if current.CurrentRevisionID != nil {
+		t.Fatal("extraction silently confirmed source")
+	}
+	confirmation := bodyJSON(t, map[string]any{"expected_version": current.Version, "facts": extracted.Facts})
+	requireStatus(t, a.request("POST", "/api/resumes/"+current.ID+"/revisions", confirmation, nil), 201)
+}

@@ -11,11 +11,6 @@ export function CreatePage({ id }: { id?: string }) {
     setText,
     selected,
     setSelected,
-    company,
-    setCompany,
-    role,
-    setRole,
-    review,
     unsupported,
     setUnsupported,
     ready,
@@ -42,11 +37,7 @@ export function CreatePage({ id }: { id?: string }) {
         <fieldset disabled={action.busy || !ready} className="workflow-fields">
           <div className="section-heading">
             <label htmlFor="job-text">{copy.jd}</label>
-            <span className="small">
-              {review
-                ? "02 / Review the details"
-                : "01 / Start with the opportunity"}
-            </span>
+            <span className="small">Start with the opportunity</span>
           </div>
           <div
             className="job-input"
@@ -91,44 +82,6 @@ export function CreatePage({ id }: { id?: string }) {
               setDirty(true);
             }}
           />
-          {review && (
-            <div className="review-fields">
-              <div>
-                <p className="eyebrow">A QUICK CHECK</p>
-                <h2>Is this the right opportunity?</h2>
-                <p className="small">
-                  Confirm the company and role. You can correct the description
-                  above.
-                </p>
-              </div>
-              <div className="two-fields">
-                <label>
-                  Company
-                  <input
-                    required
-                    maxLength={200}
-                    value={company}
-                    onChange={(e) => {
-                      setCompany(e.target.value);
-                      setDirty(true);
-                    }}
-                  />
-                </label>
-                <label>
-                  Role title
-                  <input
-                    required
-                    maxLength={200}
-                    value={role}
-                    onChange={(e) => {
-                      setRole(e.target.value);
-                      setDirty(true);
-                    }}
-                  />
-                </label>
-              </div>
-            </div>
-          )}
           <GenerationMode choice={choice} onChange={setChoice} />
           <ErrorNotice error={action.error} />
           <div className="composer-bottom">
@@ -140,11 +93,9 @@ export function CreatePage({ id }: { id?: string }) {
                   : copy.mock}
               </p>
               <p className="small muted">
-                {review
-                  ? choice.mode === "personal"
-                    ? "Your confirmed inputs will be sent when you click Generate with AI."
-                    : copy.mockDetail
-                  : "Review your job details before creating drafts."}
+                {choice.mode === "personal"
+                  ? "Generate sends this JD and your confirmed resume to your selected AI provider."
+                  : copy.mockDetail}
               </p>
             </div>
             <button
@@ -154,12 +105,10 @@ export function CreatePage({ id }: { id?: string }) {
               }
             >
               {action.busy
-                ? "Saving…"
-                : review
-                  ? choice.mode === "personal"
-                    ? "Generate with AI"
-                    : "Generate sample drafts"
-                  : "Create my drafts"}
+                ? "Preparing your drafts…"
+                : choice.mode === "personal"
+                  ? "Generate with AI"
+                  : "Generate sample drafts"}
               <Arrow />
             </button>
           </div>

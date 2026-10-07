@@ -60,3 +60,11 @@ Adds owner-bound encrypted credentials, immutable configuration revisions, versi
 ## 00008 — Personal generation
 
 Binds immutable generation runs to owner-matched AI revisions and adds durable per-task request reservations/usage. API and worker require schema 8. Provider calls use an at-most-once dispatch marker per task; explicit retries create new tasks. See [live generation](../../docs/development/live-generation.md).
+
+## 00009 — aiwanwu provider
+
+Requires schema version 9 in API and worker. Allows only valid registered provider/model pairs: OpenAI (`gpt-4.1-mini`, `gpt-4.1`) or aiwanwu (`gpt-6-sol`). Existing official revisions remain valid and unchanged. Down migration refuses if relay history exists; it does not remove credentials or generation history to force a downgrade.
+
+## JD-only generation (00010)
+
+Job revision company/role strings may be empty. The full JD remains required and immutable; the model interprets company and role within the existing two document calls. Create never blocks on a metadata form. Missing names must not be invented. Application tracking fields retain their existing constraints. Migration 00010 refuses rollback while empty job metadata exists; it never rewrites historical snapshots.

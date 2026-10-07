@@ -12,11 +12,19 @@ export const copy = {
   unsupported:
     "Screenshot and link reading are not available yet. Paste the job description as text to continue.",
   facts:
-    "Automatic extraction is not available yet. Add the facts you want to use from your resume. Only confirm information that is true.",
+    "Upload your full resume. We read PDF or Word text locally so you can check it before AI tailors a new document. Your original file stays unchanged.",
   private: "Private to your account. Your original resume stays unchanged.",
   unsaved: "You have unsaved changes. Leave this page and discard them?",
 };
 const errors: Record<string, string> = {
+  resume_ocr_required:
+    "This file has pages without readable text. Upload a text-based PDF or Word file, or paste the full resume text below. Scanned pages need OCR, which is not available yet.",
+  resume_extract_failed:
+    "We could not read this resume. Try a text-based PDF or Word file, or paste its full text below.",
+  resume_extract_unavailable:
+    "Resume reading is unavailable. Check the API installation or paste the full resume text below.",
+  resume_extract_too_large:
+    "The resume is too long to import without losing content. Use a shorter source file.",
   generation_failed:
     "The draft could not be completed. Check its status before explicitly retrying; any previous provider call may already have incurred a charge.",
   pending_generation:
@@ -38,7 +46,7 @@ const errors: Record<string, string> = {
   provider_auth_failed:
     "The provider rejected the saved key. Check AI settings.",
   provider_model_unavailable:
-    "The selected model is not available to your provider account.",
+    "The provider could not find the requested model or API endpoint. Check the provider connection details.",
   provider_rate_limited:
     "The provider reported a rate or quota limit. Check your provider account before retrying.",
   provider_timeout:
@@ -75,6 +83,8 @@ const errors: Record<string, string> = {
     "Check the required fields and their length, then try again.",
   conflict:
     "A newer version is available. Your edits are still here. Reload the saved version before trying again.",
+  resume_select_current:
+    "Select the current version of your saved resume before generating. Your input has been kept.",
   version_conflict: "A newer version is available. Your edits are still here.",
   invalid_credentials: "The email or password is incorrect.",
   email_in_use: "This email is already registered. Sign in instead.",
@@ -117,10 +127,13 @@ export const aiCopy = {
     "Choose My AI connection on Create to generate real drafts. Sample mode stays available and never calls a provider.",
   unavailable:
     "Personal AI connections are not available on this installation yet. Your sample-draft workflow is still available.",
+  relayNotice:
+    "aiwanwu is a third-party service. Testing sends your key and a short prompt to 2api.aiwanwu.cc. Generation also sends your confirmed job description and resume facts through this service.",
+  providerChange: "Switching providers requires a key for the new provider.",
   keyHelp:
     "Your key is encrypted on the server and is never shown again. Leave this empty to keep your saved key.",
   newKeyHelp:
-    "Your key is encrypted on the server. It is only used when you explicitly test this connection.",
+    "Your key is encrypted on the server. It is used when you test the connection or generate with your enabled AI connection.",
   cost: "Testing sends a short, fixed prompt and may incur a small provider charge. Your resume and job description are not sent.",
   limitHelp:
     "Limits generation calls over a rolling 24 hours. Two documents reserve two calls. Failed or uncertain attempts count too. This is not a money cap; connection tests have a separate limit.",
@@ -128,7 +141,7 @@ export const aiCopy = {
   deleted:
     "Connection removed. Saved keys have been deleted from this account.",
   deleteHelp:
-    "Remove all saved keys for this account? This does not revoke your key at OpenAI or stop a request already in progress.",
+    "Remove all saved keys for this account? This does not revoke your key at the provider or stop a request already in progress.",
   refreshed:
     "Latest settings loaded. Your unsaved edits are still here; check them before saving.",
   uncertain:
@@ -144,7 +157,7 @@ export const aiCopy = {
     provider_auth_failed:
       "The provider rejected this key. Check its permissions or replace it.",
     provider_model_unavailable:
-      "This model is not available to your provider account. Choose another model and save.",
+      "The provider returned 404. The model or API endpoint may be unavailable. Check the provider connection details.",
     provider_rate_limited:
       "The provider reported a rate or quota limit. Check your provider account before testing again.",
     provider_unavailable:

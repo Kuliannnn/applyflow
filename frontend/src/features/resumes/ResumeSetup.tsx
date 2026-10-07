@@ -7,6 +7,7 @@ import type {
   ResumeFact,
   ResumeImported,
   ResumeList,
+  ResumeSourceText,
 } from "../../shared/api/generated";
 import {
   ErrorNotice,
@@ -34,6 +35,7 @@ export function ResumeSetup({
   const [resume, setResume] = useState<Resume>(),
     [facts, setFacts] = useState<ResumeFact[]>([blank()]);
   const [show, setShow] = useState(false);
+  const [extracted, setExtracted] = useState(false);
   const [uploaded, setUploaded] = useState<PrivateFile>();
   const action = useAction();
   useUnsaved(show && facts.some((f) => !!f.text));
@@ -56,8 +58,19 @@ export function ResumeSetup({
       import_mode: "manual",
     });
     setResume(result.resume);
+    setFacts([blank()]);
+    setExtracted(false);
     setShow(true);
     list.reload();
+    await extractSource(result.resume);
+  }
+  async function extractSource(value: Resume) {
+    const source = await post<ResumeSourceText>(
+      `/resumes/${value.id}/source-text`,
+      {},
+    );
+    setFacts(source.facts);
+    setExtracted(true);
   }
   function update(index: number, patch: Partial<ResumeFact>) {
     setFacts((previous) =>
@@ -134,7 +147,18 @@ export function ResumeSetup({
               {list.data?.items
                 .filter((r) => !r.current_revision_id)
                 .map((r) => (
-                  <button key={r.id} type="button" onClick={() => setResume(r)}>
+                  <button
+                    key={r.id}
+                    type="button"
+                    onClick={() =>
+                      void action.run(async () => {
+                        setResume(r);
+                        setFacts([blank()]);
+                        setExtracted(false);
+                        await extractSource(r);
+                      })
+                    }
+                  >
                     Continue confirming {r.name}
                   </button>
                 ))}
@@ -147,31 +171,59 @@ export function ResumeSetup({
                   {resume.name}
                 </a>
               </p>
+              <button
+                type="button"
+                disabled={action.busy}
+                onClick={() => {
+                  if (
+                    !facts.some((f) => f.text.trim()) ||
+                    confirm(
+                      "Replace the text below with text read from the original file?",
+                    )
+                  )
+                    void action.run(() => extractSource(resume));
+                }}
+              >
+                {action.busy
+                  ? "Reading resume…"
+                  : "Read text from uploaded resume"}
+              </button>
+              {extracted && (
+                <p className="notice">
+                  Full resume text extracted. Check that names, dates, education
+                  and experience are complete, then confirm. This text will be
+                  used to tailor your new resume.
+                </p>
+              )}
               {facts.map((fact, i) => (
                 <div className="fact" key={fact.id}>
                   <div className="row">
-                    <label className="grow">
-                      Fact type
-                      <select
-                        value={fact.category}
-                        onChange={(e) =>
-                          update(i, {
-                            category: e.target.value as ResumeFact["category"],
-                          })
-                        }
-                      >
-                        {[
-                          "summary",
-                          "experience",
-                          "education",
-                          "skill",
-                          "project",
-                          "other",
-                        ].map((c) => (
-                          <option key={c}>{c}</option>
-                        ))}
-                      </select>
-                    </label>
+                    {!extracted && (
+                      <label className="grow">
+                        Fact type
+                        <select
+                          disabled={action.busy}
+                          value={fact.category}
+                          onChange={(e) =>
+                            update(i, {
+                              category: e.target
+                                .value as ResumeFact["category"],
+                            })
+                          }
+                        >
+                          {[
+                            "summary",
+                            "experience",
+                            "education",
+                            "skill",
+                            "project",
+                            "other",
+                          ].map((c) => (
+                            <option key={c}>{c}</option>
+                          ))}
+                        </select>
+                      </label>
+                    )}
                     <button
                       type="button"
                       className="text-button"
@@ -182,11 +234,19 @@ export function ResumeSetup({
                     </button>
                   </div>
                   <label>
-                    Confirmed fact
+                    {extracted
+                      ? `Resume text · part ${i + 1}`
+                      : "Confirmed fact"}
                     <textarea
+                      aria-label={
+                        extracted
+                          ? `Resume text · part ${i + 1}`
+                          : "Confirmed fact"
+                      }
                       required
+                      disabled={action.busy}
                       maxLength={4000}
-                      rows={3}
+                      rows={extracted ? 12 : 3}
                       value={fact.text}
                       onChange={(e) => update(i, { text: e.target.value })}
                       placeholder="What you did, where, and when. Use your own facts."
@@ -215,13 +275,14 @@ export function ResumeSetup({
                       onSelect(result.revision.id, resume.name);
                       setShow(false);
                       setFacts([blank()]);
+                      setExtracted(false);
                       setResume(undefined);
                       setUploaded(undefined);
                       list.reload();
                     })
                   }
                 >
-                  {action.busy ? "Saving…" : "Confirm these facts"}
+                  {action.busy ? "Saving…" : "Confirm resume & use it"}
                 </button>
               </div>
             </>

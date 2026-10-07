@@ -60,7 +60,7 @@ func (s FlowStore) BeginCall(ctx context.Context, c task.Claim) (generation.Cred
 	}
 	// Pinned credentials may survive model replacement; disabling/deleting stops
 	// unsent calls. Explicit retries use the same run binding, never a new key.
-	err = tx.QueryRowContext(ctx, `SELECT c.id,r.model_id,c.ciphertext,c.nonce,c.key_version FROM ai_generation_usage u JOIN user_ai_config_revisions r ON r.id=u.revision_id AND r.owner_id=u.owner_id JOIN ai_credentials c ON c.id=r.credential_id AND c.owner_id=r.owner_id JOIN user_ai_settings s ON s.user_id=u.owner_id WHERE u.task_id=$1 AND u.owner_id=$2 AND s.enabled AND r.test_status='succeeded' AND r.revoked_at IS NULL AND c.revoked_at IS NULL`, c.ID, c.OwnerID).Scan(&out.ID, &out.Model, &out.Sealed.Ciphertext, &out.Sealed.Nonce, &out.Sealed.KeyVersion)
+	err = tx.QueryRowContext(ctx, `SELECT c.id,r.provider_id,r.model_id,c.ciphertext,c.nonce,c.key_version FROM ai_generation_usage u JOIN user_ai_config_revisions r ON r.id=u.revision_id AND r.owner_id=u.owner_id JOIN ai_credentials c ON c.id=r.credential_id AND c.owner_id=r.owner_id JOIN user_ai_settings s ON s.user_id=u.owner_id WHERE u.task_id=$1 AND u.owner_id=$2 AND s.enabled AND r.test_status='succeeded' AND r.revoked_at IS NULL AND c.revoked_at IS NULL`, c.ID, c.OwnerID).Scan(&out.ID, &out.Provider, &out.Model, &out.Sealed.Ciphertext, &out.Sealed.Nonce, &out.Sealed.KeyVersion)
 	if err == sql.ErrNoRows {
 		return out, generation.Failure("ai_config_required")
 	}

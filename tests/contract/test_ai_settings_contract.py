@@ -39,3 +39,11 @@ class AISettingsContractTests(unittest.TestCase):
         schema_validator(self.spec, 'AIConfigTest').validate(dict(expected_version=0, revision=1))
         with self.assertRaises(ValidationError):
             schema_validator(self.spec, 'AIConfigTest').validate(dict(expected_version=0, revision=0))
+
+    def test_provider_model_pair(self):
+        put = schema_validator(self.spec, 'AIConfigPut')
+        base = dict(expected_version=0, provider_id='aiwanwu', model_id='gpt-6-sol', api_key='test-only-secret', daily_request_limit=20)
+        put.validate(base)
+        for extra in [dict(provider_id='openai'), dict(model_id='gpt-4.1'), dict(base_url='https://localhost'), dict(http_headers={})]:
+            with self.assertRaises(ValidationError):
+                put.validate(dict(base, **extra))

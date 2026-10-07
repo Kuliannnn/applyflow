@@ -70,7 +70,18 @@ await page.route(
     if (path === "/api/ai/providers")
       return reply({
         providers: [
-          { id: "openai", name: "OpenAI", models: ["gpt-4.1-mini", "gpt-4.1"] },
+          {
+            id: "openai",
+            name: "OpenAI",
+            models: ["gpt-4.1-mini", "gpt-4.1"],
+            endpoint: "https://api.openai.com/v1/responses",
+          },
+          {
+            id: "aiwanwu",
+            name: "aiwanwu (third-party relay)",
+            models: ["gpt-6-sol"],
+            endpoint: "https://2api.aiwanwu.cc/v1/responses",
+          },
         ],
         available,
         platform_available: false,
@@ -214,6 +225,49 @@ try {
     .getByRole("button", { name: "Test connection", exact: true })
     .waitFor();
   assert.equal(puts, 3);
+  await page
+    .getByLabel("Replace API key", { exact: true })
+    .fill("key-must-clear-on-provider-switch");
+  await page.getByLabel("Provider", { exact: true }).selectOption("aiwanwu");
+  assert.equal(
+    await page.getByLabel("Replace API key", { exact: true }).inputValue(),
+    "",
+  );
+  assert.equal(
+    await page.getByLabel("Model", { exact: true }).inputValue(),
+    "gpt-6-sol",
+  );
+  assert.equal(
+    await page
+      .getByRole("button", { name: "Save connection", exact: true })
+      .isDisabled(),
+    true,
+  );
+  await page
+    .getByText("https://2api.aiwanwu.cc/v1/responses", { exact: true })
+    .waitFor();
+  await page
+    .getByLabel("Replace API key", { exact: true })
+    .fill("relay-test-only-key");
+  await page
+    .getByRole("button", { name: "Save connection", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Test connection", exact: true })
+    .waitFor();
+  await page.waitForFunction(
+    () => document.querySelector("#ai-key")?.value === "",
+  );
+  assert.equal(config.provider_id, "aiwanwu");
+  assert.equal(config.model_id, "gpt-6-sol");
+  assert.equal(
+    await page.getByLabel("Replace API key", { exact: true }).inputValue(),
+    "",
+  );
+  await page.screenshot({
+    path: artifacts + "aiwanwu-desktop.png",
+    fullPage: true,
+  });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.screenshot({ path: artifacts + "ai-mobile.png", fullPage: true });
   assert.equal(

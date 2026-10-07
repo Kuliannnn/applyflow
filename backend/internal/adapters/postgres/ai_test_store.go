@@ -67,7 +67,7 @@ func (s AISettingsStore) StartTest(ctx context.Context, owner, key string, in ai
 		return aisettings.Started{}, aisettings.ErrRateLimited
 	}
 	claim := aisettings.Claim{OwnerID: owner, RunID: security.UUID()}
-	err = tx.QueryRowContext(ctx, `SELECT r.id,r.credential_id,r.model_id,c.ciphertext,c.nonce,c.key_version FROM user_ai_settings s JOIN user_ai_config_revisions r ON r.id=s.current_revision_id AND r.owner_id=s.user_id JOIN ai_credentials c ON c.id=r.credential_id AND c.owner_id=r.owner_id WHERE s.user_id=$1 AND r.revoked_at IS NULL AND c.revoked_at IS NULL`, owner).Scan(&claim.RevisionID, &claim.CredentialID, &claim.ModelID, &claim.Sealed.Ciphertext, &claim.Sealed.Nonce, &claim.Sealed.KeyVersion)
+	err = tx.QueryRowContext(ctx, `SELECT r.id,r.credential_id,r.provider_id,r.model_id,c.ciphertext,c.nonce,c.key_version FROM user_ai_settings s JOIN user_ai_config_revisions r ON r.id=s.current_revision_id AND r.owner_id=s.user_id JOIN ai_credentials c ON c.id=r.credential_id AND c.owner_id=r.owner_id WHERE s.user_id=$1 AND r.revoked_at IS NULL AND c.revoked_at IS NULL`, owner).Scan(&claim.RevisionID, &claim.CredentialID, &claim.ProviderID, &claim.ModelID, &claim.Sealed.Ciphertext, &claim.Sealed.Nonce, &claim.Sealed.KeyVersion)
 	if err != nil {
 		return aisettings.Started{}, err
 	}

@@ -294,3 +294,40 @@ func TestHTTPFlowValidationAndRollback(t *testing.T) {
 func (f flowFixture) executor() generation.Executor {
 	return generation.Executor{Store: f.store, Provider: provider.Mock{}}
 }
+
+func TestGenerationNeedsJDNotSeparateMetadata(t *testing.T) {
+	f := newFlow(t)
+	description := "Northstar is hiring a Backend Engineer to build Go services."
+	in := intake.Confirm{ExpectedVersion: f.version, SourceID: f.source.Source.ID, SourceVersion: 1, Description: description}
+	response := f.a.request("POST", "/api/workspaces/"+f.workspace+"/job-revisions", bodyJSON(t, in), nil)
+	requireStatus(t, response, 201)
+	confirmed := decodeBody[intake.Confirmed](t, response)
+	if confirmed.Revision.Company != "" || confirmed.Revision.RoleTitle != "" || confirmed.Revision.Description != description {
+		t.Fatal("unknown metadata or full JD was changed")
+	}
+	f.job, f.version = confirmed.Revision.ID, confirmed.WorkspaceVersion
+	accepted := f.generate(t)
+	f.drain(t)
+	result := f.generation(t, accepted.RunID)
+	if result.ResumeTask.Status != "completed" || result.CoverLetterTask.Status != "completed" {
+		t.Fatal("empty metadata blocked document generation")
+	}
+}
+
+func TestRegenerationPromotesUnchangedDocument(t *testing.T) {
+	f := newFlow(t)
+	first := f.generate(t)
+	f.drain(t)
+	old := f.generation(t, first.RunID)
+	docID, oldRevision := resultIDs(t, old.ResumeTask)
+	second := f.generate(t)
+	f.drain(t)
+	next := f.generation(t, second.RunID)
+	_, newRevision := resultIDs(t, next.ResumeTask)
+	response := f.a.request("GET", "/api/documents/"+docID, "", nil)
+	requireStatus(t, response, 200)
+	head := decodeBody[document.Document](t, response)
+	if oldRevision == newRevision || head.CurrentRevisionID == nil || *head.CurrentRevisionID != newRevision {
+		t.Fatal("regeneration still displays old document")
+	}
+}

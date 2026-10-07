@@ -81,7 +81,7 @@ func RunAPI(ctx context.Context, c config.Config, logger *slog.Logger) error {
 		ai.Vault = vault
 	}
 	gin.SetMode(gin.ReleaseMode)
-	handler := httpapi.New(authService, studio.New(postgres.WorkspaceStore{DB: db}), httpapi.Options{AI: ai, Exports: postgres.FlowStore{DB: db}, Intake: &intake.Service{Store: postgres.FlowStore{DB: db}}, Generations: postgres.FlowStore{DB: db}, Documents: postgres.FlowStore{DB: db}, Tasks: postgres.FlowStore{DB: db}, Files: files.New(postgres.FileStore{DB: db}, blobs, validator), Resumes: resume.New(postgres.ResumeStore{DB: db}), Origin: c.PublicOrigin, SessionKey: c.SessionKey, CSRFKey: c.CSRFKey, SessionTTL: c.SessionTTL, Ready: ready, Logger: logger})
+	handler := httpapi.New(authService, studio.New(postgres.WorkspaceStore{DB: db}), httpapi.Options{ResumeText: localfiles.NewTextExtractor(validator.PDFInfo), AI: ai, Exports: postgres.FlowStore{DB: db}, Intake: &intake.Service{Store: postgres.FlowStore{DB: db}}, Generations: postgres.FlowStore{DB: db}, Documents: postgres.FlowStore{DB: db}, Tasks: postgres.FlowStore{DB: db}, Files: files.New(postgres.FileStore{DB: db}, blobs, validator), Resumes: resume.New(postgres.ResumeStore{DB: db}), Origin: c.PublicOrigin, SessionKey: c.SessionKey, CSRFKey: c.CSRFKey, SessionTTL: c.SessionTTL, Ready: ready, Logger: logger})
 	server := &http.Server{Addr: c.Address, Handler: handler, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 15 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 16 * 1024}
 	listener, err := net.Listen("tcp", c.Address)
 	if err != nil {

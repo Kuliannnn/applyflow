@@ -3,6 +3,7 @@ import { ApiError } from "../../shared/api/client";
 import type {
   AIConfig,
   AIConfigTest,
+  AIConfigPut,
   AIProviders,
 } from "../../shared/api/generated";
 import { useUnsaved } from "../../shared/ui/common";
@@ -14,9 +15,9 @@ import { aiAPI } from "./api";
 export function useAISettings() {
   const [config, setConfig] = useState<AIConfig>();
   const [catalogue, setCatalogue] = useState<AIProviders>();
-  const [model, setModel] = useState<"gpt-4.1-mini" | "gpt-4.1">(
-    "gpt-4.1-mini",
-  );
+  const [provider, setProvider] =
+    useState<AIConfigPut["provider_id"]>("openai");
+  const [model, setModel] = useState<AIConfigPut["model_id"]>("gpt-4.1-mini");
   const [key, setKey] = useState("");
   const [limit, setLimit] = useState("20");
   const [busy, setBusy] = useState(false),
@@ -32,11 +33,13 @@ export function useAISettings() {
   const dirty =
     !!config &&
     (key.length > 0 ||
+      provider !== (config.provider_id ?? "openai") ||
       model !== (config.model_id ?? "gpt-4.1-mini") ||
       limit !== String(config.daily_request_limit));
   useUnsaved(dirty);
   const sync = (value: AIConfig) => {
     setConfig(value);
+    setProvider(value.provider_id ?? "openai");
     setModel(value.model_id ?? "gpt-4.1-mini");
     setLimit(String(value.daily_request_limit));
   };
@@ -115,7 +118,7 @@ export function useAISettings() {
     void run(async () => {
       const value = await aiAPI.save({
         expected_version: config.version,
-        provider_id: "openai",
+        provider_id: provider,
         model_id: model,
         daily_request_limit: Number(limit),
         ...(key ? { api_key: key } : {}),
@@ -189,7 +192,17 @@ export function useAISettings() {
       }
     }, true);
   }
+  function changeProvider(value: AIConfigPut["provider_id"]) {
+    setProvider(value);
+    setModel(
+      catalogue?.providers.find((p) => p.id === value)?.models[0] ??
+        "gpt-4.1-mini",
+    );
+    setKey("");
+  }
   return {
+    provider,
+    changeProvider,
     config,
     catalogue,
     model,

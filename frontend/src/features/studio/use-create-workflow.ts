@@ -1,3 +1,4 @@
+import { prepareResumeSource } from "../resumes/prepare-source";
 import { useEffect, useState } from "react";
 import { flushSync } from "react-dom";
 import { Commands } from "../../shared/api/client";
@@ -16,8 +17,7 @@ export function useCreateWorkflow(id?: string) {
     [selected, setSelected] = useState("");
   const [company, setCompany] = useState(""),
     [role, setRole] = useState("");
-  const [review, setReview] = useState(false),
-    [unsupported, setUnsupported] = useState(false),
+  const [unsupported, setUnsupported] = useState(false),
     [ready, setReady] = useState(!id),
     [dirty, setDirty] = useState(false);
   const action = useAction();
@@ -37,7 +37,6 @@ export function useCreateWorkflow(id?: string) {
         );
         setCompany(r.job?.company ?? "");
         setRole(r.job?.role_title ?? "");
-        setReview(!!r.source);
         setReady(true);
       })
       .catch((e) => {
@@ -54,14 +53,11 @@ export function useCreateWorkflow(id?: string) {
   const url = /^https?:\/\/\S+$/.test(text.trim());
   function submit() {
     void action.run(async () => {
-      const saved = await saveInput(commands, w, text, selected, setW);
+      const prepared = await prepareResumeSource(selected);
+      setSelected(prepared);
+      const saved = await saveInput(commands, w, text, prepared, setW);
       setW(saved);
-      if (!review) {
-        history.replaceState(null, "", "/create/" + saved.id);
-        setReview(true);
-        setDirty(false);
-        return;
-      }
+      history.replaceState(null, "", "/create/" + saved.id);
       await generate(
         commands,
         saved,
@@ -86,7 +82,6 @@ export function useCreateWorkflow(id?: string) {
     setCompany,
     role,
     setRole,
-    review,
     unsupported,
     setUnsupported,
     ready,

@@ -81,8 +81,9 @@ class StudioContractTests(unittest.TestCase):
 
     def test_export_is_fixed_revision_and_supported_format(self):
         body={'revision_id':ID,'format':'pdf','template_version':'1'}
+        self.valid('ExportCreate', {**body,'template_version':'2'})
         self.valid('ExportCreate',body)
-        for key,value in [('revision_id','latest'),('format','html'),('template_version','2')]:
+        for key,value in [('revision_id','latest'),('format','html'),('template_version','3')]:
             self.invalid('ExportCreate',{**body,key:value})
 
     def test_task_safe_view_does_not_expose_execution_input(self):

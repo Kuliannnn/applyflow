@@ -137,7 +137,9 @@ export async function generate(
       job_revision_id: result.revision.id,
     };
   }
-  const title = Array.from(role + " · " + company)
+  const title = Array.from(
+    [role, company].filter(Boolean).join(" · ") || "New application",
+  )
     .slice(0, 160)
     .join("");
   if (w.title !== title)

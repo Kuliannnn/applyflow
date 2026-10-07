@@ -15,6 +15,7 @@ import (
 type Input struct {
 	Text, Role, Company string
 	ExecutionMode       string
+	PromptVersion       string
 	Facts               []resume.Fact
 }
 type Store interface {

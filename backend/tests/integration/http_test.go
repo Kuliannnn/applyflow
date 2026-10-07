@@ -126,7 +126,7 @@ func newHTTPWithAI(t *testing.T, probe aisettings.Probe) (http.Handler, *sql.DB,
 	if err != nil {
 		t.Fatal(err)
 	}
-	h := httpapi.New(a, studio.New(postgres.WorkspaceStore{DB: db}), httpapi.Options{AI: &aisettings.Service{Store: postgres.AISettingsStore{DB: db}, Vault: vault, Probe: probe}, Exports: postgres.FlowStore{DB: db}, Intake: &intake.Service{Store: postgres.FlowStore{DB: db}}, Generations: postgres.FlowStore{DB: db}, Documents: postgres.FlowStore{DB: db}, Tasks: postgres.FlowStore{DB: db}, Files: files.New(postgres.FileStore{DB: db}, blobs, validator), Resumes: resume.New(postgres.ResumeStore{DB: db}), Origin: testOrigin, SessionKey: []byte(strings.Repeat("s", 32)), CSRFKey: []byte(strings.Repeat("c", 32)), SessionTTL: 30 * time.Minute, Ready: db.PingContext, Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
+	h := httpapi.New(a, studio.New(postgres.WorkspaceStore{DB: db}), httpapi.Options{ResumeText: localfiles.NewTextExtractor(validator.PDFInfo), AI: &aisettings.Service{Store: postgres.AISettingsStore{DB: db}, Vault: vault, Probe: probe}, Exports: postgres.FlowStore{DB: db}, Intake: &intake.Service{Store: postgres.FlowStore{DB: db}}, Generations: postgres.FlowStore{DB: db}, Documents: postgres.FlowStore{DB: db}, Tasks: postgres.FlowStore{DB: db}, Files: files.New(postgres.FileStore{DB: db}, blobs, validator), Resumes: resume.New(postgres.ResumeStore{DB: db}), Origin: testOrigin, SessionKey: []byte(strings.Repeat("s", 32)), CSRFKey: []byte(strings.Repeat("c", 32)), SessionTTL: 30 * time.Minute, Ready: db.PingContext, Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
 	return h, db, ctx, blobs
 }
 func newBrowser(h http.Handler) *browser {

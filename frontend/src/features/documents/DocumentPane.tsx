@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { downloadFile } from "./download-file";
+import { useEffect, useRef, useState } from "react";
 import type {
   Document,
   DocumentExport,
@@ -30,6 +31,12 @@ export function DocumentPane({
   const [commands, setCommands] = useState(() => new Commands());
   const [exported, setExported] = useState<DocumentExport>();
   const [exportDone, setExportDone] = useState(false);
+  const [downloadAttempt, setDownloadAttempt] = useState(0);
+  const delivered = useRef(0);
+  const [downloading, setDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState<unknown>();
+  const [downloadStarted, setDownloadStarted] = useState(false);
+  const [editing, setEditing] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const history = useResource<DocumentRevisionList>(
     historyOpen ? `/documents/${document.id}/revisions?limit=100` : null,
@@ -41,18 +48,40 @@ export function DocumentPane({
   );
   useUnsaved(d.dirty);
   useEffect(() => {
-    if (task.data && terminal(task.data.status)) setExportDone(true);
-  }, [task.data]);
+    if (
+      task.data?.task_id === exported?.task_id &&
+      task.data &&
+      terminal(task.data.status)
+    )
+      setExportDone(true);
+  }, [task.data, exported?.task_id]);
   const download =
+    task.data?.task_id === exported?.task_id &&
     task.data?.result?.kind === "export"
       ? task.data.result.file_id
       : exported?.file_id;
+  useEffect(() => {
+    if (!download || !exported || delivered.current === downloadAttempt) return;
+    delivered.current = downloadAttempt;
+    setDownloading(true);
+    setDownloadError(undefined);
+    void downloadFile(
+      download,
+      `${document.kind}-${exported.revision_id}.${exported.format}`,
+    )
+      .then(() => setDownloadStarted(true))
+      .catch(setDownloadError)
+      .finally(() => setDownloading(false));
+  }, [download, downloadAttempt, exported, document.kind]);
   async function exportFile(format: "pdf" | "docx") {
     const revision = await d.save();
     const result = await commands.send<DocumentExport>(
       "/documents/" + document.id + "/exports",
-      { revision_id: revision.id, format, template_version: "1" },
+      { revision_id: revision.id, format, template_version: "2" },
     );
+    setDownloadError(undefined);
+    setDownloadStarted(false);
+    setDownloadAttempt((n) => n + 1);
     setExported(result);
     setExportDone(!!result.file_id);
   }
@@ -80,6 +109,11 @@ export function DocumentPane({
             {action.busy ? "Please wait…" : "Save changes"}
           </button>
         </div>
+        {d.draft && (
+          <button className="secondary" onClick={() => setEditing(!editing)}>
+            {editing ? "Preview document" : "Edit document"}
+          </button>
+        )}
         <ErrorNotice error={d.error} />
         {!!d.error && (
           <button onClick={() => void action.run(d.compare)}>
@@ -87,7 +121,12 @@ export function DocumentPane({
           </button>
         )}
         {d.loading && <p>Loading saved text…</p>}
-        {d.draft && (
+        {d.draft && !editing && (
+          <div className="resume-paper">
+            <ContentPreview value={d.draft} />
+          </div>
+        )}
+        {d.draft && editing && (
           <ContentEditor
             value={d.draft}
             onChange={d.setDraft}
@@ -135,20 +174,30 @@ export function DocumentPane({
         <div className="aside-divider" />
         <h3>Take it with you</h3>
         <p className="small">
-          Export saves your edits first, then fixes that version into a private
-          file.
+          Export saves your edits, prepares the file, and downloads it
+          automatically.
         </p>
         <div className="export-buttons">
           <button
             className="primary"
-            disabled={action.busy || !d.base || (!!exported && !exportDone)}
+            disabled={
+              action.busy ||
+              downloading ||
+              !d.base ||
+              (!!exported && !exportDone)
+            }
             onClick={() => void action.run(() => exportFile("pdf"))}
           >
             Export PDF ↗
           </button>
           <button
             className="secondary"
-            disabled={action.busy || !d.base || (!!exported && !exportDone)}
+            disabled={
+              action.busy ||
+              downloading ||
+              !d.base ||
+              (!!exported && !exportDone)
+            }
             onClick={() => void action.run(() => exportFile("docx"))}
           >
             Word document ↗
@@ -161,13 +210,20 @@ export function DocumentPane({
               : "Export queued. Waiting for the worker…"}
           </Notice>
         )}
-        {download && (
-          <a
-            className="download-link"
-            href={"/api/files/" + download + "/download"}
+        {downloading && <p role="status">Downloading your document…</p>}
+        {downloadStarted && !downloading && (
+          <p className="small" role="status">
+            Download started.
+          </p>
+        )}
+        <ErrorNotice error={downloadError} />
+        {!!downloadError && (
+          <button
+            type="button"
+            onClick={() => setDownloadAttempt((n) => n + 1)}
           >
-            Download {exported?.format.toUpperCase()}
-          </a>
+            Retry download
+          </button>
         )}
         {task.data && ["failed", "cancelled"].includes(task.data.status) && (
           <Notice>

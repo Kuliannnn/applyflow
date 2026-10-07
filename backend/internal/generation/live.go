@@ -6,6 +6,7 @@ import (
 
 	"applyflow/backend/internal/aisettings"
 	"applyflow/backend/internal/document"
+	"applyflow/backend/internal/platform/executionbudget"
 	"applyflow/backend/internal/task"
 )
 
@@ -16,8 +17,8 @@ func (f Failure) Error() string    { return string(f) }
 func (f Failure) SafeCode() string { return string(f) }
 
 type Credential struct {
-	ID, Model string
-	Sealed    aisettings.Sealed
+	ID, Provider, Model string
+	Sealed              aisettings.Sealed
 }
 type Usage struct{ InputTokens, OutputTokens *int64 }
 type LiveResult struct {
@@ -25,7 +26,7 @@ type LiveResult struct {
 	Usage   Usage
 }
 type LiveProvider interface {
-	DraftLive(context.Context, string, Input, string, []byte) (LiveResult, error)
+	DraftLive(context.Context, string, Input, string, string, []byte) (LiveResult, error)
 }
 type LiveStore interface {
 	BeginCall(context.Context, task.Claim) (Credential, error)
@@ -47,8 +48,8 @@ func (e Executor) live(ctx context.Context, c task.Claim, in Input, kind string)
 	if err != nil {
 		err = Failure("credential_unavailable")
 	} else {
-		bounded, cancel := context.WithTimeout(ctx, 60*time.Second)
-		result, err = e.Live.DraftLive(bounded, kind, in, credential.Model, secret)
+		bounded, cancel := context.WithTimeout(ctx, executionbudget.ProviderCall)
+		result, err = e.Live.DraftLive(bounded, kind, in, credential.Provider, credential.Model, secret)
 		cancel()
 		clear(secret)
 	}

@@ -100,7 +100,7 @@ func TestHTTPExportSnapshotsAndDeduplication(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			expected, err := f.exportExecutor(t).Renderer.Render(f.ctx, "pdf", old.Content)
+			expected, err := f.exportExecutor(t).Renderer.Render(f.ctx, "pdf", "1", old.Content)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -241,5 +241,26 @@ func TestExportFencesAndAtomicFileCommit(t *testing.T) {
 	}
 	if result["status"] != "failed" || result["result"] != nil {
 		t.Fatal("task falsely completed")
+	}
+}
+
+func TestExportTemplateVersionsAreSeparate(t *testing.T) {
+	f := newFlow(t)
+	run := f.generate(t)
+	f.drain(t)
+	docID, revision := resultIDs(t, f.generation(t, run.RunID).ResumeTask)
+	var ids []string
+	for _, version := range []string{"1", "2"} {
+		response := f.a.request("POST", "/api/documents/"+docID+"/exports", bodyJSON(t, export.Create{RevisionID: revision, Format: "pdf", TemplateVersion: version}), map[string]string{"Idempotency-Key": security.UUID()})
+		requireStatus(t, response, 202)
+		result := decodeBody[export.Export](t, response)
+		ids = append(ids, result.ID)
+		f.exportTick(t)
+	}
+	if ids[0] == "" || ids[0] == ids[1] {
+		t.Fatal("new template reused legacy export")
+	}
+	if scalar(t, f.ctx, f.db, `SELECT count(*) FROM document_exports WHERE file_id IS NOT NULL`) != 2 {
+		t.Fatal("both templates must remain downloadable")
 	}
 }

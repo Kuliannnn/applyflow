@@ -16,6 +16,7 @@ import (
 	"applyflow/backend/internal/export"
 	"applyflow/backend/internal/generation"
 	"applyflow/backend/internal/platform/config"
+	"applyflow/backend/internal/platform/executionbudget"
 	"applyflow/backend/internal/task"
 	"applyflow/backend/migrations"
 )
@@ -57,6 +58,6 @@ func RunWorker(ctx context.Context, c config.Worker, logger *slog.Logger) error 
 		gen.Vault = v
 	}
 	exports := export.Executor{Store: store, Renderer: renderer, Blobs: blobs}
-	logger.Info("worker started", "delivery", "postgres-outbox", "generation", "mock-v1/personal-v1", "export_template", "1")
+	logger.Info("worker started", "delivery", "postgres-outbox", "generation", "mock-v1/personal-v1", "export_template", "2", "provider_timeout_seconds", executionbudget.ProviderCall.Seconds())
 	return (task.Worker{Store: store, Executor: task.Router{"extract_jd": gen, "tailor_resume": gen, "write_cover_letter": gen, "export_document": exports}, Logger: logger}).Run(ctx)
 }

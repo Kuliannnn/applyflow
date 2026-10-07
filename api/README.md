@@ -1,10 +1,10 @@
-# HTTP 契约 0.7.0 — Foundation + Studio
+# HTTP 契约 0.9.0 — Foundation + Studio
 
-`openapi.yaml` 是本批实现的唯一公共协议来源，版本 0.7.0。它可被 OpenAPI 工具读取，其中 41 个操作已实现，覆盖文本 JD、Mock 双文档和版本编辑；其余 handler 尚未实现。实际列表见 [本地 API](../docs/development/local-api.md)。
+`openapi.yaml` 是本批实现的唯一公共协议来源，版本 0.9.0。它可被 OpenAPI 工具读取，其中 42 个操作已实现，覆盖文本 JD、Mock 双文档和版本编辑；其余 handler 尚未实现。实际列表见 [本地 API](../docs/development/local-api.md)。
 
 ## 核心决策
 
-- 57 个操作（原有 17 + Studio 33 + AI 设置/用量 7）；所有写操作明确要求 CSRF header 与同源 Origin 策略。
+- 58 个操作（原有 17 + Studio 33 + AI 设置/用量 7 + 简历全文提取 1）；所有写操作明确要求 CSRF header 与同源 Origin 策略。
 - 注册返回 201 + Session；登录返回 200 + Session；令牌只通过 HttpOnly Cookie；注销返回 204。登录邮箱 trim/lower，密码绝不 trim。
 - 个人资料仅 basics。新用户 profile_version=1；注册事务创建空 profile。偏好和经历暂不接受。
 - profile/skill 写操作锁 users、检查版本、修改数据并提升 profile_version 一次，全部原子提交。DELETE 的 If-Match 承载相同版本号，其他写操作放在 JSON expected_version。
@@ -72,3 +72,7 @@ createDocumentExport/getDocumentExport 两个操作已实现，累计 34/50。PD
 ## 0.7.0 真实生成
 
 personal 模式固定已确认输入与 AI revision，生成前原子预留两次调用；GET /api/me/ai-usage 读取私有滚动 24 小时用量。累计 41/57 个已实现操作。无自动付费重试、无 Mock 回退；模型输出校验后复用文档版本和导出。详见 [实施说明](../docs/development/live-generation.md)。
+
+## 0.9.0 aiwanwu
+
+AI provider 目录新增 aiwanwu / gpt-6-sol，并提供固定 endpoint 字段。PUT 配对校验与 SQL 约束一致；切换 provider 必须提供新 Key。测试和生成均根据固定 revision 路由，不接受任意地址或请求头。

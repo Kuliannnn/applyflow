@@ -9,4 +9,4 @@ import "embed"
 var FS embed.FS
 
 // LatestVersion is the schema required by API and worker.
-const LatestVersion = 8
+const LatestVersion = 10

@@ -1,16 +1,16 @@
 # Application Studio — 核心工作流架构
 
-> 2026-09-28 实施状态：OpenAPI 0.7.0 定义 57 个操作，其中 41 个已有 handler。已实现认证、工作区、私有 PDF/DOCX、手动简历确认、文本 JD、独立 Mock Worker、双文档版本保存/应用、任务取消、单份重试与固定版本 PDF/DOCX 导出。当前 Worker 使用 PostgreSQL outbox 直接派发；Redis/Asynq、自动简历解析、截图/链接、SSE 尚未实现；英文玻璃前端已接通现有 Mock 流程。迁移为 00001–00008；个人 AI 设置后端与表单已接通，真实生成已接通，运行边界见 docs/development/live-generation.md。
+> 2026-09-28 实施状态：OpenAPI 0.9.0 定义 58 个操作，其中 42 个已有 handler。已实现认证、工作区、私有 PDF/DOCX、手动简历确认、文本 JD、独立 Mock Worker、双文档版本保存/应用、任务取消、单份重试与固定版本 PDF/DOCX 导出。当前 Worker 使用 PostgreSQL outbox 直接派发；Redis/Asynq、扫描件 OCR、截图/链接、SSE 尚未实现；英文玻璃前端已接通现有 Mock 流程。迁移为 00001–00010；个人 AI 设置后端与表单已接通，真实生成已接通，运行边界见 docs/development/live-generation.md。
 
-状态：2026-09-21 确认的目标设计；契约、表结构及文本 JD → 双文档 Mock 工作流已落地。本文与 [界面设计](../design/DESIGN.md) 配套，补齐输入、生成、版本、导出及文件职责。现有 `api/openapi.yaml` 已为 0.7.0，包含基础和 Studio 协议；下述为整体目标，具体字段与 mock 范围以 YAML 为准。当前可调用范围见本地 API 文档；固定版本导出已实现，真实 AI 生成已实现，AI 修改尚未实现。
+状态：2026-09-21 确认的目标设计；契约、表结构及文本 JD → 双文档 Mock 工作流已落地。本文与 [界面设计](../design/DESIGN.md) 配套，补齐输入、生成、版本、导出及文件职责。现有 `api/openapi.yaml` 已为 0.9.0，包含基础和 Studio 协议；下述为整体目标，具体字段与 mock 范围以 YAML 为准。当前可调用范围见本地 API 文档；固定版本导出已实现，真实 AI 生成已实现，AI 修改尚未实现。
 
 ## 1. 边界与流程
 
 ```text
 Create workspace → import JD (text / image / public URL)
                  → select/import base resume (PDF / DOCX)
-                 → review extracted facts and job details
-                 → confirm immutable input snapshot
+                 → confirm resume facts; LLM reads company/role from full JD
+                 → Generate saves immutable input snapshot (no separate review screen)
                  → generate resume + cover letter as independent tasks
                  → review/edit/apply candidate revisions
                  → export selected revision → optionally track application
@@ -179,6 +179,6 @@ Worker 完成事务的锁顺序仍为 workspace → document → task，条件�
 
 `generation.Executor` 通过窄 Store 和 Provider 接口读取固定输入、生成并校验内容；SQL adapter 只做持久化和并发控制，Mock Provider 只组装已确认事实。任务读取不暴露 lease/fence、input_snapshot 或私有存储路径。当前取消直接写 cancelled，使晚到结果在提交条件处失败。
 
-文本来源也产生真实 task/outbox，返回原文等待用户确认，公司/岗位不猜测。两项文档任务各自保存结果。首次 head 只在空 head、版本与 current_run 匹配时初始化；人工编辑可在新 run 进行中继续保存原 head，保留旧 run 的来源；新结果只能成为候选，Apply 校验当前 run。单份失败/取消可显式重试，成功兄弟任务不重做。生成、结果、重放、取消、恢复与编辑竞态均有真实 PG 集成测试。
+文本来源也产生真实 task/outbox，返回原文等待用户确认，公司/岗位不猜测。两项文档任务各自保存结果。首次及重新生成均在 head 仍等于任务的 base_revision、文档版本未变化且 current_run 匹配时自动切换到新结果；人工编辑可在新 run 进行中继续保存原 head，保留旧 run 的来源，此时新结果作为候选保留，Apply 校验当前 run。单份失败/取消可显式重试，成功兄弟任务不重做。生成、结果、重放、取消、恢复与编辑竞态均有真实 PG 集成测试。
 
 schema 仍为 6，既有 migration 未改。OpenAPI 0.5.0 共 50 个操作，34 个已实现，源输入当前明确仅 text；SSE、导出、归档、改写与真实 AI 仍为未来能力。

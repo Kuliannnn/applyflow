@@ -23,6 +23,7 @@ import (
 )
 
 type Options struct {
+	ResumeText          resume.TextExtractor
 	AI                  *aisettings.Service
 	Exports             export.Store
 	Intake              *intake.Service
@@ -82,6 +83,7 @@ func New(a *auth.Service, s *studio.Service, o Options) http.Handler {
 		rs.GET("", api.listResumes)
 		rs.POST("", api.csrfGuard, api.importResume)
 		rs.GET("/:id", api.getResume)
+		rs.POST("/:id/source-text", api.csrfGuard, api.extractResumeText)
 		rs.PATCH("/:id", api.csrfGuard, api.patchResume)
 		rs.POST("/:id/revisions", api.csrfGuard, api.confirmResume)
 		rs.GET("/:id/revisions/:revision_id", api.getResumeRevision)

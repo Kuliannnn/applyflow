@@ -3,6 +3,9 @@ GO ?= go
 PYTHON ?= .venv/bin/python
 EXPORT_PYTHON ?= $(abspath .venv/bin/python)
 export EXPORT_PYTHON
+# Resolve before recipes cd into backend, so API and worker share one store.
+FILE_STORAGE_DIR ?= $(abspath var/private-files)
+export FILE_STORAGE_DIR
 
 .PHONY: help setup-tools check check-contract test-contract check-go test-integration test-migrations-local migrate-up migrate-status run-api run-worker
 help:

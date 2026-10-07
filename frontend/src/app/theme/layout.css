@@ -834,3 +834,32 @@
 .generation-mode select {
   max-width: 480px;
 }
+
+.resume-paper {
+  margin-top: 1.5rem;
+  padding: clamp(1rem, 4vw, 3rem);
+  background: rgba(255, 255, 255, 0.92);
+  color: #202020;
+  border: 1px solid rgba(40, 40, 40, 0.12);
+  border-radius: 4px;
+}
+.resume-paper .revision-preview {
+  font-family: Georgia, serif;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.resume-paper h3 {
+  font-size: 1.9rem;
+  margin-top: 0;
+}
+.resume-paper h4 {
+  font-family: inherit;
+  border-bottom: 1px solid #bbb;
+  padding-bottom: 0.3rem;
+  margin-bottom: 0.65rem;
+}
+.resume-paper p {
+  white-space: pre-wrap;
+  font-size: 1rem;
+  margin: 0.65rem 0;
+}

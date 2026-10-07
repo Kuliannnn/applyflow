@@ -24,7 +24,7 @@ func (api *API) createExport(c *gin.Context) {
 	if !decode(c, &in) {
 		return
 	}
-	if !security.ValidUUID(in.RevisionID) || (in.Format != "pdf" && in.Format != "docx") || in.TemplateVersion != "1" {
+	if !security.ValidUUID(in.RevisionID) || (in.Format != "pdf" && in.Format != "docx") || (in.TemplateVersion != "1" && in.TemplateVersion != "2") {
 		problem(c, 400, "validation_error")
 		return
 	}

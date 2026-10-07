@@ -18,6 +18,9 @@ import (
 //go:embed render.py
 var script string
 
+//go:embed render_v1.py
+var legacyScript string
+
 type Renderer struct{ Python string }
 
 func New(ctx context.Context, binary string) (Renderer, error) {
@@ -49,9 +52,15 @@ func (b *boundedBuffer) Write(p []byte) (int, error) {
 	}
 	return b.Buffer.Write(p)
 }
-func (r Renderer) Render(ctx context.Context, format string, content document.Content) ([]byte, error) {
+func (r Renderer) Render(ctx context.Context, format, template string, content document.Content) ([]byte, error) {
 	if format != "pdf" && format != "docx" {
 		return nil, export.Error("export_format_invalid")
+	}
+	selected := script
+	if template == "1" {
+		selected = legacyScript
+	} else if template != "2" {
+		return nil, export.Error("export_template_invalid")
 	}
 	raw, err := json.Marshal(map[string]any{"format": format, "content": content})
 	if err != nil {
@@ -62,7 +71,7 @@ func (r Renderer) Render(ctx context.Context, format string, content document.Co
 	}
 	bounded, cancel := context.WithTimeout(ctx, 8*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(bounded, r.Python, "-I", "-c", script)
+	cmd := exec.CommandContext(bounded, r.Python, "-I", "-c", selected)
 	cmd.Env = []string{"LANG=C.UTF-8", "LC_ALL=C.UTF-8"}
 	cmd.Stdin = bytes.NewReader(raw)
 	out, stderr := &boundedBuffer{limit: files.MaxBytes}, &boundedBuffer{limit: 1024}

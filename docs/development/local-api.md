@@ -176,7 +176,7 @@ Worker 是独立进程；API 不在 HTTP 请求里执行生成。只启动 API �
 - `intake`：文本与确认输入规则；`studio/generation.go`：生成请求和响应模型。
 - `task/worker.go`：独立任务循环、领取、恢复、失败处理；`generation/execute.go`：调用 Provider、校验结构与事实引用；`adapters/provider/mock.go`：确定性模拟正文，无网络/模型调用。
 - `adapters/postgres/{intake,generation,document,task}_store.go`：接受事务、持久查询、版本更新和任务状态；`flow_store.go` 提供共享幂等事务辅助。
-- Worker 每次领取一个任务，锁使用 SKIP LOCKED，90 秒租约、75 秒执行预算；单次外部调用最多 60 秒，不续租。到期进入 retry_wait，1 秒后重新投递，最多 3 次领取；旧 fence、取消或已完成任务不能再提交。
+- Worker 每次领取一个任务，锁使用 SKIP LOCKED，210 秒租约、195 秒执行预算；单次外部调用最多 180 秒，不续租。到期进入 retry_wait，1 秒后重新投递，最多 3 次领取；旧 fence、取消或已完成任务不能再提交。
 - 本地派发在同一事务消费 outbox 并领取任务；重试增加 delivery_generation。Redis/Asynq 派发、长任务续租和外部调用预算仍待真实 AI 阶段实现。
 - Provider 计算在事务外；完成事务锁 workspace → document → task，保存 revision 与 task.result 原子提交。数据库提交失败不留下假成功或半份正文。
 - 运行环境仍为单主机；API 内存限流仍限制为单 API 进程。多 Worker 抢任务已在测试中验证，但未进行公网部署/负载测试。SSE 尚未实现，前端已接通现有 Mock 流程，当前通过 JSON 轮询使用。
@@ -191,7 +191,7 @@ Worker 是独立进程；API 不在 HTTP 请求里执行生成。只启动 API �
 2. POST `/api/documents/{id}/exports`，带 Cookie、Origin、X-CSRF-Token 和新的 UUID Idempotency-Key：
 
 ```json
-{"revision_id":"<saved revision UUID>","format":"pdf","template_version":"1"}
+{"revision_id":"<saved revision UUID>","format":"pdf","template_version":"2"}
 ```
 
 `format` 可为 `pdf` 或 `docx`。202 返回 export 身份和 task_id；GET `/api/tasks/{task_id}` 轮询执行状态，再 GET `/api/documents/{id}/exports/{export_id}` 取得 file_id，通过 GET `/api/files/{file_id}/download` 鉴权下载。生成期间修改 head 不改变已接受的导出内容。
@@ -224,3 +224,9 @@ Worker 是独立进程；API 不在 HTTP 请求里执行生成。只启动 API �
 ## 真实 AI 生成（0.7.0）
 
 API 与 Worker 均需同一持久凭据主密钥，迁移至 00008 后重启。用户显式选择 personal，固定 AI revision；两份文档分别计费、独立成功/失败，支持原版本导出。请求限额、用量、超时与恢复语义见 [完整说明](live-generation.md)。
+
+默认导出模板现为 2：单栏 A4、姓名大标题、章节细线、分层经历与独立信函段落间距。模板 1 保持原实现，用于已有任务和历史文件；导出缓存按 revision、format 和 template_version 区分，因此无需再次调用 AI 即可重新排版同一份内容。重启 API 与 worker 后使用新版导出。
+
+本地 `make run-api` / `make run-worker` 默认共享项目根目录的 `var/private-files`（Makefile 在进入 backend 前解析为绝对路径）。显式 FILE_STORAGE_DIR 必须在两个进程中一致。修改环境变量后重启进程；下载 503 但导出任务已完成时，先检查两个进程的目录是否一致，不必重复调用 AI。
+
+前端 Export PDF / Word document 会在导出完成后自动下载，包括已有缓存文件；不再要求第二次点击 Download。下载请求先检查状态，503 等错误留在编辑页并提供 Retry download，重试只读取文件，不重新生成文档或调用 AI。

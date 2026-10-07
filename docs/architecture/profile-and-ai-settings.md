@@ -273,3 +273,7 @@ frontend/src/pages/
 必测：其他账号不能读取/修改配置或资料；响应与日志无 Key；错误主密钥拒绝解密；相同测试 key 不重复计费调用；迟到测试不能激活旧 revision；多标签页 profile/config 冲突；资料不全仍可保存职位；不同用户 Key 不串用；配置变更不改变旧任务；撤销与执行竞争；平台不自动兜底；外部 401 不注销本站会话；无效/自定义 endpoint 被拒绝；资料版本与快照一致；移除技能变为未评估；备份/导出不泄露明文 Key。
 
 本文是上述两个模块的协议细化；第一批基础资料/技能的 OpenAPI 已在 `api/openapi.yaml` 落地，本文其他接口仍待后续批次；目前没有可运行 HTTP 接口。
+
+## aiwanwu 实施补充（0.8.0）
+
+通过共享 Provider registry 注册固定地址 `https://2api.aiwanwu.cc/v1/responses` 和模型 `gpt-6-sol`，使用 Bearer Key。目录、保存校验、连接测试、Worker 真实生成都依据同一不可变 provider/model/credential revision。切换服务商必须重新输入密钥，前端清空未保存的 Key；不允许跨服务商复用旧 Key。迁移 00009 对 provider/model 配对施加数据库约束。用户输入任意 URL、组织/项目头以及 Codex 功能配置不在此次范围。中转站的真实兼容性仍需账户验收。

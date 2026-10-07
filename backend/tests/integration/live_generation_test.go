@@ -16,7 +16,7 @@ import (
 
 type fakeLive func(context.Context, string, generation.Input, string, []byte) (generation.LiveResult, error)
 
-func (f fakeLive) DraftLive(ctx context.Context, kind string, in generation.Input, model string, key []byte) (generation.LiveResult, error) {
+func (f fakeLive) DraftLive(ctx context.Context, kind string, in generation.Input, provider, model string, key []byte) (generation.LiveResult, error) {
 	return f(ctx, kind, in, model, key)
 }
 func enableLive(t *testing.T, f flowFixture) {
@@ -219,5 +219,33 @@ func TestLiveReservationsSerializeAndUsageIsPrivate(t *testing.T) {
 	requireStatus(t, usage, 200)
 	if !strings.Contains(usage.Body.String(), `"reserved_requests":1`) {
 		t.Fatal("cancel did not release reservation")
+	}
+}
+
+// A slow relay may still be answering at 170 seconds. Recovery by another
+// worker must not steal its task while the provider call is within its budget.
+func TestLiveLeaseKeepsOwnershipDuringLongProviderCall(t *testing.T) {
+	f := newFlow(t)
+	enableLive(t, f)
+	acceptLive(t, &f)
+	claim, err := f.store.Claim(f.ctx)
+	if err != nil || claim == nil {
+		t.Fatal(claim, err)
+	}
+	if _, err := f.store.BeginCall(f.ctx, *claim); err != nil {
+		t.Fatal(err)
+	}
+	// Simulate elapsed lease time without sleeping or making a provider request.
+	exec(t, f.ctx, f.db, `UPDATE job_tasks SET lease_until=lease_until-interval '170 seconds' WHERE id=$1`, claim.ID)
+	if err := f.store.Recover(f.ctx); err != nil {
+		t.Fatal(err)
+	}
+	var status string
+	var fence int64
+	if err := f.db.QueryRowContext(f.ctx, `SELECT status,fencing_token FROM job_tasks WHERE id=$1`, claim.ID).Scan(&status, &fence); err != nil {
+		t.Fatal(err)
+	}
+	if status != "running" || fence != claim.Fence {
+		t.Fatalf("in-budget provider task was reclaimed: status=%s fence=%d", status, fence)
 	}
 }

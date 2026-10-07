@@ -1,6 +1,7 @@
 package render
 
 import (
+	"applyflow/backend/internal/adapters/localfiles"
 	"applyflow/backend/internal/document"
 	"applyflow/backend/internal/export"
 	"archive/zip"
@@ -42,7 +43,31 @@ func TestRenderFormatsAndBoundaries(t *testing.T) {
 	for name, content := range samples {
 		for _, format := range []string{"pdf", "docx"} {
 			t.Run(name+"-"+format, func(t *testing.T) {
-				raw, err := r.Render(context.Background(), format, content)
+				raw, err := r.Render(context.Background(), format, "2", content)
+				if err == nil && format == "pdf" && name == "resume" {
+					validator, e := localfiles.NewValidator("")
+					if e != nil {
+						t.Fatal(e)
+					}
+					source, e := localfiles.NewTextExtractor(validator.PDFInfo).Extract(context.Background(), "application/pdf", raw)
+					if e != nil {
+						t.Fatal("exported PDF cannot be read back", e)
+					}
+					var full strings.Builder
+					for _, fact := range source.Facts {
+						full.WriteString(fact.Text)
+						full.WriteString(" ")
+					}
+					normalized := strings.Join(strings.Fields(strings.ReplaceAll(full.String(), "•", "")), " ")
+					for _, section := range content.Sections {
+						for _, item := range section.Items {
+							if !strings.Contains(normalized, strings.Join(strings.Fields(item.Text), " ")) {
+								t.Fatal("PDF extraction lost source detail")
+							}
+						}
+					}
+				}
+
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -105,18 +130,18 @@ func TestRenderFormatsAndBoundaries(t *testing.T) {
 	bad := fixture("resume")
 	title := "Unsupported 😀"
 	bad.Title = &title
-	if _, err = r.Render(context.Background(), "pdf", bad); !errors.Is(err, export.Error("export_unsupported_character")) {
+	if _, err = r.Render(context.Background(), "pdf", "2", bad); !errors.Is(err, export.Error("export_unsupported_character")) {
 		t.Fatalf("unsupported glyph silently substituted: %v", err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err = r.Render(ctx, "pdf", fixture("resume")); err == nil {
+	if _, err = r.Render(ctx, "pdf", "2", fixture("resume")); err == nil {
 		t.Fatal("cancelled renderer succeeded")
 	}
 	escaped := fixture("resume")
 	literal := "Literal <script> & URL https://example.com/test"
 	escaped.Title = &literal
-	raw, err := r.Render(context.Background(), "pdf", escaped)
+	raw, err := r.Render(context.Background(), "pdf", "2", escaped)
 	if err != nil || len(raw) == 0 {
 		t.Fatal("plain text markup interpreted", err)
 	}

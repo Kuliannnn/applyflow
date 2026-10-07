@@ -15,7 +15,6 @@ import (
 	"applyflow/backend/internal/aisettings"
 )
 
-const endpoint = "https://api.openai.com/v1/responses"
 const maxResponseBytes = 64 * 1024
 
 type OpenAI struct{ client *http.Client }
@@ -29,15 +28,16 @@ func NewOpenAI() *OpenAI {
 	transport.MaxResponseHeaderBytes = 16 * 1024
 	return &OpenAI{client: &http.Client{Transport: transport, Timeout: 8 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}
 }
-func (p *OpenAI) Test(ctx context.Context, model string, secret []byte) aisettings.ProbeResult {
+func (p *OpenAI) Test(ctx context.Context, provider, model string, secret []byte) aisettings.ProbeResult {
 	failed := func(status, code string) aisettings.ProbeResult {
 		return aisettings.ProbeResult{Status: status, Code: code}
 	}
-	if !aisettings.ValidModel("openai", model) {
+	destination, ok := aisettings.ResolveProvider(provider, model)
+	if !ok {
 		return failed("failed", "provider_model_unavailable")
 	}
 	body, _ := json.Marshal(map[string]any{"model": model, "input": "Reply with OK.", "max_output_tokens": 32, "store": false, "stream": false})
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, destination.Endpoint, bytes.NewReader(body))
 	if err != nil {
 		return failed("inconclusive", "provider_unavailable")
 	}
@@ -56,8 +56,10 @@ func (p *OpenAI) Test(ctx context.Context, model string, secret []byte) aisettin
 	defer resp.Body.Close()
 	switch resp.StatusCode {
 	case 401, 403:
+		logRejectedResponse(ctx, provider, resp)
 		return failed("failed", "provider_auth_failed")
 	case 404:
+		logRejectedResponse(ctx, provider, resp)
 		return failed("failed", "provider_model_unavailable")
 	case 429:
 		return failed("failed", "provider_rate_limited")
